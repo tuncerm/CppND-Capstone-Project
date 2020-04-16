@@ -5,12 +5,12 @@
 #include "character.h"
 
 class Controller {
- public:
-  void HandleInput(bool &running, Snake &snake) const;
+public:
+    void HandleInput(bool &running, Character &character) const;
 
- private:
-  void ChangeDirection(Snake &snake, Snake::Direction input,
-                       Snake::Direction opposite) const;
+private:
+    void ChangeDirection(Character &character, Character::Direction input,
+                         Character::Direction opposite) const;
 };
 
 #endif
