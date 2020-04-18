@@ -47,33 +47,44 @@ void Renderer::Render(Character const character, SDL_Point const &food) {
     block.w = screen_width / grid_width;
     block.h = screen_height / grid_height;
 
-    // Clear screen
-    SDL_SetRenderDrawColor(sdl_renderer, 0x1E, 0x1E, 0x1E, 0xFF);
-    SDL_RenderClear(sdl_renderer);
-
-    // Render food
-    SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xCC, 0x00, 0xFF);
-    block.x = food.x * block.w;
-    block.y = food.y * block.h;
-    SDL_RenderFillRect(sdl_renderer, &block);
-
-    // Render character's body
-    SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    for (SDL_Point const &point : character.body) {
-        block.x = point.x * block.w;
-        block.y = point.y * block.h;
+    // Render Map   //32*20
+    for (size_t i = 0; i < 640; ++i)
+    {
+        size_t row = i / 32;
+        size_t col = i % 32;
+        block.x = col * block.w;
+        block.y = row * block.h;
+        if (game_map[i] == 1){
+            SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0x00, 0x00, 0xFF);
+        } else {
+            SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x00, 0xFF, 0xFF);
+        }
         SDL_RenderFillRect(sdl_renderer, &block);
     }
 
-    // Render character's head
-    block.x = static_cast<int>(character.head_x) * block.w;
-    block.y = static_cast<int>(character.head_y) * block.h;
-    if (character.alive) {
-        SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x7A, 0xCC, 0xFF);
-    } else {
-        SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0x00, 0x00, 0xFF);
-    }
-    SDL_RenderFillRect(sdl_renderer, &block);
+    // Render Enemies
+    // SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xCC, 0x00, 0xFF);
+    // block.x = food.x * block.w;
+    // block.y = food.y * block.h;
+    // SDL_RenderFillRect(sdl_renderer, &block);
+
+    // Render Player
+    // SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+    // for (SDL_Point const &point : character.body) {
+    //     block.x = point.x * block.w;
+    //     block.y = point.y * block.h;
+    //     SDL_RenderFillRect(sdl_renderer, &block);
+    // }
+
+    // Render Projectiles
+    // block.x = static_cast<int>(character.head_x) * block.w;
+    // block.y = static_cast<int>(character.head_y) * block.h;
+    // if (character.alive) {
+    //     SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x7A, 0xCC, 0xFF);
+    // } else {
+    //     SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0x00, 0x00, 0xFF);
+    // }
+    // SDL_RenderFillRect(sdl_renderer, &block);
 
     // Update Screen
     SDL_RenderPresent(sdl_renderer);
