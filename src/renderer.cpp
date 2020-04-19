@@ -68,10 +68,11 @@ void Renderer::Render(Player const player) {
 //     SDL_RenderFillRect(sdl_renderer, &block);
 
     // Render Player
-    SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    block.x = player.GetX();
-    block.y = player.GetY();
-    SDL_RenderFillRect(sdl_renderer, &block);
+//    SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+//    block.x = player.GetX();
+//    block.y = player.GetY();
+//    SDL_RenderFillRect(sdl_renderer, &block);
+    RenderObject(ObjectType::kPlayer, player.GetDirection(), player.GetX(), player.GetY());
 
     // Render Projectiles
 //     block.x = static_cast<int>(player.head_x) * block.w;
@@ -90,4 +91,71 @@ void Renderer::Render(Player const player) {
 void Renderer::UpdateWindowTitle(int score, int fps) {
     std::string title{"PlayGame Score: " + std::to_string(score) + " FPS: " + std::to_string(fps)};
     SDL_SetWindowTitle(sdl_window, title.c_str());
+}
+
+void Renderer::RenderObject(Renderer::ObjectType ot, Character::Direction d, int posX, int posY) {
+    SDL_Rect block;
+    if (ot == ObjectType::kPlayer){
+        SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x00, 0x00, 0xFF);
+        block.w = _grid_size;
+        block.h = _grid_size;
+        block.x = posX;
+        block.y = posY;
+        SDL_RenderFillRect(sdl_renderer, &block);
+        SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x00, 0xFF, 0xFF);
+        if (d == Character::Direction::kUp){
+            block.w = 6;
+            block.h = 8;
+            block.x = posX + 8;
+            block.y = posY;
+            SDL_RenderFillRect(sdl_renderer, &block);
+            block.x = posX + 18;
+            SDL_RenderFillRect(sdl_renderer, &block);
+            block.w = 16;
+            block.x = posX + 8;
+            block.y = posY + 24;
+            SDL_RenderFillRect(sdl_renderer, &block);
+        }
+        if (d == Character::Direction::kDown){
+            block.w = 6;
+            block.h = 8;
+            block.x = posX + 8;
+            block.y = posY + 24;
+            SDL_RenderFillRect(sdl_renderer, &block);
+            block.x = posX + 18;
+            SDL_RenderFillRect(sdl_renderer, &block);
+            block.w = 16;
+            block.x = posX + 8;
+            block.y = posY;
+            SDL_RenderFillRect(sdl_renderer, &block);
+        }
+        if (d == Character::Direction::kLeft){
+            block.w = 8;
+            block.h = 6;
+            block.x = posX;
+            block.y = posY + 8;
+            SDL_RenderFillRect(sdl_renderer, &block);
+            block.y = posY + 18;
+            SDL_RenderFillRect(sdl_renderer, &block);
+            block.w = 8;
+            block.h = 16;
+            block.x = posX + 24;
+            block.y = posY + 8;
+            SDL_RenderFillRect(sdl_renderer, &block);
+        }
+        if (d == Character::Direction::kRight){
+            block.w = 8;
+            block.h = 6;
+            block.x = posX + 24;
+            block.y = posY + 8;
+            SDL_RenderFillRect(sdl_renderer, &block);
+            block.y = posY + 18;
+            SDL_RenderFillRect(sdl_renderer, &block);
+            block.w = 8;
+            block.h = 16;
+            block.x = posX;
+            block.y = posY + 8;
+            SDL_RenderFillRect(sdl_renderer, &block);
+        }
+    }
 }

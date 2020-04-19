@@ -9,12 +9,19 @@
 
 class Renderer {
 public:
+    enum class ObjectType{
+        kPlayer,
+        kEnemy,
+        kProjectile
+    };
     Renderer(const int grid_size,
             const int grid_width,
             const int grid_height,
             std::shared_ptr<GameMap> map_ptr);
 
     ~Renderer();
+
+    void RenderObject(ObjectType ot, Character::Direction d, int posX, int posY);
 
     void Render(Player const player);
 

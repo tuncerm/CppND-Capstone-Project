@@ -27,7 +27,7 @@ public:
 
     void SetDirection(Direction direction) { _direction = direction; }
 
-    Direction GetDirection() { return _direction; }
+    Direction GetDirection() const { return _direction; }
 
     bool IsAlive() const { return _alive; }
 
