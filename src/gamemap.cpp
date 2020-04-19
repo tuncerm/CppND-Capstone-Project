@@ -1,7 +1,13 @@
 #include "gamemap.h"
 
 bool GameMap::AreaIsAvailable(int x, int y, int offX, int offY) const{
-    return _map[(y / _size) + offY][(x / _size) + offX] == 0;
+    int row = (y / _size) + offY;
+    int col = (x / _size) + offX;
+    if(offX && !(x % _size))
+        --col;
+    if(offY && !(y % _size))
+        --row;
+    return _map[row][col] == 0;
 }
 
 GameMap::GameMap(int grid_height, int grid_width, int grid_size, std::vector<std::vector<int>> map_data):

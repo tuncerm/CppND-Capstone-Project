@@ -3,6 +3,7 @@
 #define CHARACTER_H
 
 #include <vector>
+#include "gamemap.h"
 
 class Character {
 public:
@@ -10,11 +11,12 @@ public:
         kUp, kDown, kLeft, kRight
     };
 
-    Character(int startX, int startY, Direction direction, int speed)
+    Character(int startX, int startY, Direction direction, int speed, std::shared_ptr<GameMap> map_ptr)
             : _direction(direction),
               _speed(speed),
               _pos_x(startX),
-              _pos_y(startY) {}
+              _pos_y(startY),
+              _map_ptr(map_ptr) {}
 
     void Update();
 
@@ -36,6 +38,7 @@ private:
     int _pos_y;
     bool _alive{true};
     int _speed;
+    std::shared_ptr<GameMap> _map_ptr;
 };
 
 #endif
