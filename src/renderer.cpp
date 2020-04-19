@@ -3,16 +3,16 @@
 #include <iostream>
 #include <string>
 
-Renderer::Renderer(const std::size_t screen_width,
-                   const std::size_t screen_height,
+Renderer::Renderer(const std::size_t grid_size,
                    const std::size_t grid_width,
                    const std::size_t grid_height,
-                   const int grid_map[])
-        : screen_width(screen_width),
-          screen_height(screen_height),
+                   std::vector<std::vector<int>> &map_vector)
+        : screen_width(grid_size * grid_width),
+          screen_height(grid_size * grid_height),
           grid_width(grid_width),
           grid_height(grid_height),
-          game_map(grid_map) {
+          game_map(map_vector),
+          grid_size(grid_size) {
     // Initialize SDL
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cerr << "SDL could not initialize.\n";
@@ -42,49 +42,46 @@ Renderer::~Renderer() {
     SDL_Quit();
 }
 
-void Renderer::Render(Character const character, SDL_Point const &food) {
+void Renderer::Render(Player const player) {
     SDL_Rect block;
-    block.w = screen_width / grid_width;
-    block.h = screen_height / grid_height;
+    block.w = grid_size;
+    block.h = grid_size;
 
     // Render Map   //32*20
-    for (size_t i = 0; i < 640; ++i)
-    {
-        size_t row = i / 32;
-        size_t col = i % 32;
-        block.x = col * block.w;
-        block.y = row * block.h;
-        if (game_map[i] == 1){
-            SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0x00, 0x00, 0xFF);
-        } else {
-            SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x00, 0xFF, 0xFF);
+    for (int row = 0; row < game_map.size(); ++row) {
+        for (int col = 0; col < game_map[row].size(); ++col) {
+            block.x = col * block.w;
+            block.y = row * block.h;
+            if (game_map[row][col] == 1) {
+                SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0x00, 0x00, 0xFF);
+            } else {
+                SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x00, 0xFF, 0xFF);
+            }
+            SDL_RenderFillRect(sdl_renderer, &block);
         }
-        SDL_RenderFillRect(sdl_renderer, &block);
     }
 
     // Render Enemies
-    // SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xCC, 0x00, 0xFF);
-    // block.x = food.x * block.w;
-    // block.y = food.y * block.h;
-    // SDL_RenderFillRect(sdl_renderer, &block);
+//     SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xCC, 0x00, 0xFF);
+//     block.x = food.x * block.w;
+//     block.y = food.y * block.h;
+//     SDL_RenderFillRect(sdl_renderer, &block);
 
     // Render Player
-    // SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    // for (SDL_Point const &point : character.body) {
-    //     block.x = point.x * block.w;
-    //     block.y = point.y * block.h;
-    //     SDL_RenderFillRect(sdl_renderer, &block);
-    // }
+    SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+    block.x = player.GetX();
+    block.y = player.GetY();
+    SDL_RenderFillRect(sdl_renderer, &block);
 
     // Render Projectiles
-    // block.x = static_cast<int>(character.head_x) * block.w;
-    // block.y = static_cast<int>(character.head_y) * block.h;
-    // if (character.alive) {
-    //     SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x7A, 0xCC, 0xFF);
-    // } else {
-    //     SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0x00, 0x00, 0xFF);
-    // }
-    // SDL_RenderFillRect(sdl_renderer, &block);
+//     block.x = static_cast<int>(player.head_x) * block.w;
+//     block.y = static_cast<int>(player.head_y) * block.h;
+//     if (player.alive) {
+//         SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x7A, 0xCC, 0xFF);
+//     } else {
+//         SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0x00, 0x00, 0xFF);
+//     }
+//     SDL_RenderFillRect(sdl_renderer, &block);
 
     // Update Screen
     SDL_RenderPresent(sdl_renderer);

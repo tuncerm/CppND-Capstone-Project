@@ -3,7 +3,6 @@
 #define CHARACTER_H
 
 #include <vector>
-#include "SDL.h"
 
 class Character {
 public:
@@ -11,35 +10,32 @@ public:
         kUp, kDown, kLeft, kRight
     };
 
-    Character(int grid_width, int grid_height)
-            : grid_width(grid_width),
-              grid_height(grid_height),
-              head_x(grid_width / 2),
-              head_y(grid_height / 2) {}
+    Character(int startX, int startY, Direction direction, int speed)
+            : _direction(direction),
+              _speed(speed),
+              _pos_x(startX),
+              _pos_y(startY) {}
 
     void Update();
 
-    void GrowBody();
+    int GetX() const { return _pos_x; }
 
-    bool CharacterCell(int x, int y);
+    int GetY() const { return _pos_y; }
 
-    Direction direction = Direction::kUp;
+    void SetDirection(Direction direction) { _direction = direction; }
 
-    float speed{0.1f};
-    int size{1};
-    bool alive{true};
-    float head_x;
-    float head_y;
-    std::vector<SDL_Point> body;
+    Direction GetDirection() { return _direction; }
+
+    bool IsAlive() const { return _alive; }
+
+    void IsAlive(bool alive) { alive = alive; }
 
 private:
-    void UpdateHead();
-
-    void UpdateBody(SDL_Point &current_cell, SDL_Point &prev_cell);
-
-    bool growing{false};
-    int grid_width;
-    int grid_height;
+    Direction _direction;
+    int _pos_x;
+    int _pos_y;
+    bool _alive{true};
+    int _speed;
 };
 
 #endif

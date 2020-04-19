@@ -10,29 +10,21 @@
 
 class Game {
 public:
-    Game(std::size_t grid_width, std::size_t grid_height, const int grid_map[]);
+    Game(int grid_size, int grid_width, int grid_height, std::vector<std::vector<int>> &map_vector);
 
-    void Run(Controller const &controller, Renderer &renderer,
-             std::size_t target_frame_duration);
+    void Run(Controller const &controller, Renderer &renderer, std::size_t target_frame_duration);
 
     int GetScore() const;
 
-    int GetSize() const;
 
 private:
-    Character character;
-    SDL_Point food;
+    Player player;
+    // std::vector<Enemy> enemies;
+    // std::vector<Projectile> projectiles;
 
-    const int *game_map;
-
-    std::random_device dev;
-    std::mt19937 engine;
-    std::uniform_int_distribution<int> random_w;
-    std::uniform_int_distribution<int> random_h;
+    std::vector<std::vector<int>> &game_map;
 
     int score{0};
-
-    void PlaceFood();
 
     void Update();
 };

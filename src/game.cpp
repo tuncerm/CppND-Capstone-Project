@@ -3,17 +3,13 @@
 #include <iostream>
 #include "SDL.h"
 
-Game::Game(std::size_t grid_width, std::size_t grid_height, const int grid_map[])
-        : character(grid_width, grid_height),
-          engine(dev()),
-          random_w(0, static_cast<int>(grid_width)),
-          random_h(0, static_cast<int>(grid_height)),
-          game_map(grid_map) {
-    PlaceFood();
+Game::Game(int grid_size, int grid_width, int grid_height, std::vector<std::vector<int>> &map_vector) :
+        player(grid_size * (grid_width / 2), grid_size * (grid_height - 2), Player::Direction::kUp, 4),
+        game_map(map_vector) {
+//    PlaceFood();
 }
 
-void Game::Run(Controller const &controller, Renderer &renderer,
-               std::size_t target_frame_duration) {
+void Game::Run(Controller const &controller, Renderer &renderer, std::size_t target_frame_duration) {
     Uint32 title_timestamp = SDL_GetTicks();
     Uint32 frame_start;
     Uint32 frame_end;
@@ -25,9 +21,9 @@ void Game::Run(Controller const &controller, Renderer &renderer,
         frame_start = SDL_GetTicks();
 
         // Input, Update, Render - the main game loop.
-        controller.HandleInput(running, character);
+        controller.HandleInput(running, player);
         Update();
-        renderer.Render(character, food);
+        renderer.Render(player);
 
         frame_end = SDL_GetTicks();
 
@@ -51,39 +47,26 @@ void Game::Run(Controller const &controller, Renderer &renderer,
     }
 }
 
-void Game::PlaceFood() {
-    int x, y;
-    while (true) {
-        x = random_w(engine);
-        y = random_h(engine);
-        // Check that the location is not occupied by a character item before placing
-        // food.
-        if (!character.CharacterCell(x, y)) {
-            food.x = x;
-            food.y = y;
-            return;
-        }
-    }
-}
+//void Game::PlaceFood() {
+//    int x, y;
+//    while (true) {
+//        x = random_w(engine);
+//        y = random_h(engine);
+//        // Check that the location is not occupied by a character item before placing
+//        // food.
+//        if (!character.CharacterCell(x, y)) {
+//            food.x = x;
+//            food.y = y;
+//            return;
+//        }
+//    }
+//}
 
 void Game::Update() {
-    if (!character.alive) return;
-
-    character.Update();
-
-    int new_x = static_cast<int>(character.head_x);
-    int new_y = static_cast<int>(character.head_y);
-
-    // Check if there's food over here
-    if (food.x == new_x && food.y == new_y) {
-        score++;
-        PlaceFood();
-        // Grow character and increase speed.
-        character.GrowBody();
-        character.speed += 0.02;
-    }
+    if (!player.IsAlive()) return;
+//    player.Update();
+//    int new_x = player.GetX();
+//    int new_y = player.GetY();
 }
 
 int Game::GetScore() const { return score; }
-
-int Game::GetSize() const { return character.size; }

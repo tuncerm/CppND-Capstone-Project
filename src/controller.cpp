@@ -2,24 +2,28 @@
 #include "controller.h"
 #include <iostream>
 #include "SDL.h"
-#include "character.h"
+#include "player.h"
 
-void Controller::ChangeDirection(Character &character, Character::Direction input) const {
-    character.direction = input;
+void Controller::ChangeDirection(Player &player, Player::Direction input) {
+    if (player.GetDirection() == input) {
+        player.Update();
+    } else {
+        player.SetDirection(input);
+    }
     return;
 }
 
-void Controller::FireProjectile(Character &character) const {
+void Controller::FireProjectile(Player &player) const {
     // ToDo Implement Fire Projectile
     std::cout << "Fire in the hole!" << std::endl;
-}   
+}
 
 void Controller::HandlePause() const {
     // ToDo Implement Pause
     std::cout << "Paused" << std::endl;
-}   
+}
 
-void Controller::HandleInput(bool &running, Character &character) const {
+void Controller::HandleInput(bool &running, Player &player) const {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_QUIT) {
@@ -27,23 +31,23 @@ void Controller::HandleInput(bool &running, Character &character) const {
         } else if (e.type == SDL_KEYDOWN) {
             switch (e.key.keysym.sym) {
                 case SDLK_UP:
-                    ChangeDirection(character, Character::Direction::kUp);
+                    ChangeDirection(player, Character::Direction::kUp);
                     break;
 
                 case SDLK_DOWN:
-                    ChangeDirection(character, Character::Direction::kDown);
+                    ChangeDirection(player, Character::Direction::kDown);
                     break;
 
                 case SDLK_LEFT:
-                    ChangeDirection(character, Character::Direction::kLeft);
+                    ChangeDirection(player, Character::Direction::kLeft);
                     break;
 
                 case SDLK_RIGHT:
-                    ChangeDirection(character, Character::Direction::kRight);
+                    ChangeDirection(player, Character::Direction::kRight);
                     break;
-                    
+
                 case SDLK_f:
-                    FireProjectile(character);
+                    FireProjectile(player);
                     break;
 
                 case SDLK_p:

@@ -2,16 +2,18 @@
 #ifndef CONTROLLER_H
 #define CONTROLLER_H
 
-#include "character.h"
+#include "player.h"
 
 class Controller {
 public:
-    void HandleInput(bool &running, Character &character) const;
+    void HandleInput(bool &running, Player &player) const;
 
 private:
-    void ChangeDirection(Character &character, Character::Direction input) const;
-    void FireProjectile(Character &character) const;
-    void HandlePause() const; 
+    static void ChangeDirection(Player &player, Player::Direction input);
+
+    void FireProjectile(Player &player) const;
+
+    void HandlePause() const;
 };
 
 #endif
