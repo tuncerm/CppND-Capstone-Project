@@ -4,7 +4,7 @@
 #include "SDL.h"
 
 Game::Game(int grid_size, int grid_width, int grid_height, std::shared_ptr<GameMap> map_ptr) :
-        player(grid_size * (grid_width / 2), grid_size * (grid_height - 2), Player::Direction::kUp, 4, map_ptr),
+        player(grid_size, grid_size * (grid_width / 2), grid_size * (grid_height - 2), Player::Direction::kUp, 4, map_ptr),
         _map_ptr(map_ptr),
         _grid_size(grid_size){
 //    PlaceFood();

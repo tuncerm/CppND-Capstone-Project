@@ -8,8 +8,8 @@
 
 class Player : public Character {
 public:
-    Player(int startX, int startY, Direction direction, int speed, std::shared_ptr<GameMap> map_ptr) :
-        Character(startX, startY, direction, speed, map_ptr) {}
+    Player(int grid_size, int startX, int startY, Direction direction, int speed, std::shared_ptr<GameMap> map_ptr) :
+        Character(grid_size, startX, startY, direction, speed, map_ptr) {}
 };
 
 #endif

@@ -11,8 +11,9 @@ public:
         kUp, kDown, kLeft, kRight
     };
 
-    Character(int startX, int startY, Direction direction, int speed, std::shared_ptr<GameMap> map_ptr)
-            : _direction(direction),
+    Character(int grid_size, int startX, int startY, Direction direction, int speed, std::shared_ptr<GameMap> map_ptr)
+            : _grid_size(grid_size),
+              _direction(direction),
               _speed(speed),
               _pos_x(startX),
               _pos_y(startY),
@@ -33,9 +34,10 @@ public:
     void IsAlive(bool alive) { alive = alive; }
 
 private:
-    Direction _direction;
+    int _grid_size;
     int _pos_x;
     int _pos_y;
+    Direction _direction;
     bool _alive{true};
     int _speed;
     std::shared_ptr<GameMap> _map_ptr;
