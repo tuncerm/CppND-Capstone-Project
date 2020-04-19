@@ -5,7 +5,7 @@
 class GameMap {
 public:
     GameMap(int grid_height, int grid_width, int grid_size, std::vector<std::vector<int>> map_data);
-    bool AreaIsAvailable(int x, int y) const;
+    bool AreaIsAvailable(int x, int y, int offX, int offY) const;
     int RowCount() { return _height;}
     int ColCount() { return _width; }
     int GetElement(int row, int col){ return _map[row][col]; }

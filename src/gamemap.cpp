@@ -1,7 +1,7 @@
 #include "gamemap.h"
 
-bool GameMap::AreaIsAvailable(int x, int y) const{
-    return _map[y / _size][x / _size] == 0;
+bool GameMap::AreaIsAvailable(int x, int y, int offX, int offY) const{
+    return _map[(y / _size) + offY][(x / _size) + offX] == 0;
 }
 
 GameMap::GameMap(int grid_height, int grid_width, int grid_size, std::vector<std::vector<int>> map_data):
