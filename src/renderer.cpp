@@ -3,16 +3,16 @@
 #include <iostream>
 #include <string>
 
-Renderer::Renderer(const std::size_t grid_size,
-                   const std::size_t grid_width,
-                   const std::size_t grid_height,
-                   std::vector<std::vector<int>> &map_vector)
-        : screen_width(grid_size * grid_width),
-          screen_height(grid_size * grid_height),
-          grid_width(grid_width),
-          grid_height(grid_height),
-          game_map(map_vector),
-          grid_size(grid_size) {
+Renderer::Renderer(const int grid_size,
+                   const int grid_width,
+                   const int grid_height,
+                   std::shared_ptr<GameMap> map_ptr)
+        : _screen_width(grid_size * grid_width),
+          _screen_height(grid_size * grid_height),
+          _grid_width(grid_width),
+          _grid_height(grid_height),
+          _map_ptr(map_ptr),
+          _grid_size(grid_size) {
     // Initialize SDL
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cerr << "SDL could not initialize.\n";
@@ -21,8 +21,8 @@ Renderer::Renderer(const std::size_t grid_size,
 
     // Create Window
     sdl_window = SDL_CreateWindow("Character Game", SDL_WINDOWPOS_CENTERED,
-                                  SDL_WINDOWPOS_CENTERED, screen_width,
-                                  screen_height, SDL_WINDOW_SHOWN);
+                                  SDL_WINDOWPOS_CENTERED, _screen_width,
+                                  _screen_height, SDL_WINDOW_SHOWN);
 
     if (nullptr == sdl_window) {
         std::cerr << "Window could not be created.\n";
@@ -44,15 +44,15 @@ Renderer::~Renderer() {
 
 void Renderer::Render(Player const player) {
     SDL_Rect block;
-    block.w = grid_size;
-    block.h = grid_size;
+    block.w = _grid_size;
+    block.h = _grid_size;
 
     // Render Map   //32*20
-    for (int row = 0; row < game_map.size(); ++row) {
-        for (int col = 0; col < game_map[row].size(); ++col) {
+    for (int row = 0; row < _map_ptr->RowCount(); ++row) {
+        for (int col = 0; col < _map_ptr->ColCount(); ++col) {
             block.x = col * block.w;
             block.y = row * block.h;
-            if (game_map[row][col] == 1) {
+            if (_map_ptr->GetElement(row, col) == 1) {
                 SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0x00, 0x00, 0xFF);
             } else {
                 SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x00, 0xFF, 0xFF);

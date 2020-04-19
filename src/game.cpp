@@ -3,9 +3,10 @@
 #include <iostream>
 #include "SDL.h"
 
-Game::Game(int grid_size, int grid_width, int grid_height, std::vector<std::vector<int>> &map_vector) :
+Game::Game(int grid_size, int grid_width, int grid_height, std::shared_ptr<GameMap> map_ptr) :
         player(grid_size * (grid_width / 2), grid_size * (grid_height - 2), Player::Direction::kUp, 4),
-        game_map(map_vector) {
+        _map_ptr(map_ptr),
+        _grid_size(grid_size){
 //    PlaceFood();
 }
 
