@@ -28,8 +28,6 @@ private:
     std::shared_ptr<GameMap> _map_ptr;
     int _grid_size;
     int score{0};
-
-    void Update();
 };
 
 #endif

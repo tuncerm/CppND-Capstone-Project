@@ -8,7 +8,6 @@ Game::Game(int grid_size, int grid_width, int grid_height, std::shared_ptr<GameM
         enemy(grid_size, grid_size * (grid_width / 2), grid_size * (2), Character::Direction::kDown, 4, map_ptr),
         _map_ptr(map_ptr),
         _grid_size(grid_size){
-//    PlaceFood();
 }
 
 void Game::Run(Controller const &controller, Renderer &renderer, std::size_t target_frame_duration) {
@@ -24,7 +23,7 @@ void Game::Run(Controller const &controller, Renderer &renderer, std::size_t tar
 
         // Input, Update, Render - the main game loop.
         controller.HandleInput(running, player);
-        Update();
+        enemy.Move();
         renderer.Render(player, enemy);
 
         frame_end = SDL_GetTicks();
@@ -47,28 +46,6 @@ void Game::Run(Controller const &controller, Renderer &renderer, std::size_t tar
             SDL_Delay(target_frame_duration - frame_duration);
         }
     }
-}
-
-//void Game::PlaceFood() {
-//    int x, y;
-//    while (true) {
-//        x = random_w(engine);
-//        y = random_h(engine);
-//        // Check that the location is not occupied by a character item before placing
-//        // food.
-//        if (!character.CharacterCell(x, y)) {
-//            food.x = x;
-//            food.y = y;
-//            return;
-//        }
-//    }
-//}
-
-void Game::Update() {
-    if (!player.IsAlive()) return;
-//    player.Update();
-//    int new_x = player.GetX();
-//    int new_y = player.GetY();
 }
 
 int Game::GetScore() const { return score; }
