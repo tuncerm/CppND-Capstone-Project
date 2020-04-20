@@ -42,7 +42,7 @@ Renderer::~Renderer() {
     SDL_Quit();
 }
 
-void Renderer::Render(Player const player) {
+void Renderer::Render(Player const player, Enemy const enemy) {
     SDL_Rect block;
     block.w = _grid_size;
     block.h = _grid_size;
@@ -61,28 +61,9 @@ void Renderer::Render(Player const player) {
         }
     }
 
-    // Render Enemies
-//     SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xCC, 0x00, 0xFF);
-//     block.x = food.x * block.w;
-//     block.y = food.y * block.h;
-//     SDL_RenderFillRect(sdl_renderer, &block);
-
-    // Render Player
-//    SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xFF, 0xFF, 0xFF);
-//    block.x = player.GetX();
-//    block.y = player.GetY();
-//    SDL_RenderFillRect(sdl_renderer, &block);
     RenderObject(ObjectType::kPlayer, player.GetDirection(), player.GetX(), player.GetY());
 
-    // Render Projectiles
-//     block.x = static_cast<int>(player.head_x) * block.w;
-//     block.y = static_cast<int>(player.head_y) * block.h;
-//     if (player.alive) {
-//         SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x7A, 0xCC, 0xFF);
-//     } else {
-//         SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0x00, 0x00, 0xFF);
-//     }
-//     SDL_RenderFillRect(sdl_renderer, &block);
+    RenderObject(ObjectType::kEnemy, enemy.GetDirection(), enemy.GetX(), enemy.GetY());
 
     // Update Screen
     SDL_RenderPresent(sdl_renderer);
@@ -95,8 +76,11 @@ void Renderer::UpdateWindowTitle(int score, int fps) {
 
 void Renderer::RenderObject(Renderer::ObjectType ot, Character::Direction d, int posX, int posY) {
     SDL_Rect block;
-    if (ot == ObjectType::kPlayer){
-        SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x00, 0x00, 0xFF);
+    if (ot == ObjectType::kPlayer || ot == ObjectType::kEnemy){
+        if (ot == Renderer::ObjectType::kPlayer)
+            SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x00, 0x00, 0xFF);
+        else
+            SDL_SetRenderDrawColor(sdl_renderer, 0xAA, 0xAA, 0x00, 0xFF);
         block.w = _grid_size;
         block.h = _grid_size;
         block.x = posX;

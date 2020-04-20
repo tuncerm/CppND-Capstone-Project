@@ -8,6 +8,8 @@
 #include "controller.h"
 #include "renderer.h"
 #include "character.h"
+#include "enemy.h"
+#include "projectile.h"
 
 class Game {
 public:
@@ -19,6 +21,7 @@ public:
 
 private:
     Player player;
+    Enemy enemy;
     // std::vector<Enemy> enemies;
     // std::vector<Projectile> projectiles;
 

@@ -12,15 +12,9 @@ public:
         kUp, kDown, kLeft, kRight
     };
 
-    Character(int grid_size, int startX, int startY, Direction direction, int speed, std::shared_ptr<GameMap> map_ptr)
-            : _grid_size(grid_size),
-              _direction(direction),
-              _speed(speed),
-              _pos_x(startX),
-              _pos_y(startY),
-              _map_ptr(map_ptr) {}
+    Character(int grid_size, int startX, int startY, Direction direction, int speed, std::shared_ptr<GameMap> map_ptr);
 
-    void Move();
+    virtual void Move(){};
 
     int GetX() const { return _pos_x; }
 
@@ -34,7 +28,7 @@ public:
 
     void IsAlive(bool alive) { alive = alive; }
 
-private:
+protected:
     int _grid_size;
     int _pos_x;
     int _pos_y;
