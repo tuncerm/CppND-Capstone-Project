@@ -3,6 +3,7 @@
 #define RENDERER_H
 
 #include <vector>
+#include <memory>
 #include "SDL.h"
 #include "player.h"
 #include "gamemap.h"

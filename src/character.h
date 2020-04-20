@@ -3,6 +3,7 @@
 #define CHARACTER_H
 
 #include <vector>
+#include <memory>
 #include "gamemap.h"
 
 class Character {

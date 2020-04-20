@@ -1,5 +1,6 @@
 //Copied From CppND-Capstone-Snake-Game
 #include <iostream>
+#include <memory>
 #include "controller.h"
 #include "game.h"
 #include "renderer.h"
