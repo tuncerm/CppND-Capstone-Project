@@ -6,7 +6,7 @@
 
 void Controller::ChangeDirection(Player &player, Player::Direction input) {
     if (player.GetDirection() == input) {
-        player.Update();
+        player.Move();
     } else {
         player.SetDirection(input);
     }

@@ -1,7 +1,7 @@
 //Copied From CppND-Capstone-Snake-Game
 #include "character.h"
 #include <iostream>
-void Character::Update() {
+void Character::Move() {
     switch (_direction) {
         case Direction::kUp:
             if (_pos_x % _grid_size){

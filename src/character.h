@@ -20,7 +20,7 @@ public:
               _pos_y(startY),
               _map_ptr(map_ptr) {}
 
-    void Update();
+    void Move();
 
     int GetX() const { return _pos_x; }
 
