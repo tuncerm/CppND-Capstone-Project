@@ -16,11 +16,10 @@ public:
     void Move() override;
 
 private:
+    bool _moving {false};
     std::shared_ptr<AICentral> _ai;
     bool mapping{true};
-
     void DrawMap(int row, int col, AICentral::MapObject value);
-
     AICentral::MapObject ReadMap(int row, int col);
 
 };
