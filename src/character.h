@@ -14,7 +14,7 @@ public:
 
     Character(int grid_size, int startX, int startY, Direction direction, int speed, std::shared_ptr<GameMap> map_ptr);
 
-    virtual void Move(){};
+    virtual void Move() {};
 
     int GetX() const { return _pos_x; }
 

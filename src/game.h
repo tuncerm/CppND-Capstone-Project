@@ -10,10 +10,12 @@
 #include "character.h"
 #include "enemy.h"
 #include "projectile.h"
+#include "AICentral.h"
 
 class Game {
 public:
-    Game(int grid_size, int grid_width, int grid_height, std::shared_ptr<GameMap> map_ptr);
+    Game(int grid_size, int grid_width, int grid_height, std::shared_ptr<GameMap> map_ptr,
+         std::shared_ptr<AICentral> aiCentral);
 
     void Run(Controller const &controller, Renderer &renderer, std::size_t target_frame_duration);
 
@@ -22,6 +24,7 @@ public:
 private:
     Player player;
     Enemy enemy;
+    std::shared_ptr<AICentral> _aiCentral;
     // std::vector<Enemy> enemies;
     // std::vector<Projectile> projectiles;
 

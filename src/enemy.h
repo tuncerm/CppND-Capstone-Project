@@ -3,20 +3,26 @@
 #define ENEMY_H
 
 #include <vector>
+#include <memory>
 #include "character.h"
 #include "gamemap.h"
+#include "AICentral.h"
 
 class Enemy : public Character {
 public:
-    Enemy(int grid_size, int startX, int startY, Direction direction, int speed, std::shared_ptr<GameMap> map_ptr);
-    
+    Enemy(int grid_size, int startX, int startY, Direction direction, int speed, std::shared_ptr<GameMap> map_ptr,
+          std::shared_ptr<AICentral> ai);
+
     void Move() override;
 
 private:
-    bool mapping {false};
-    int targetRow, targetCol;
-    void DrawMap(int row, int col, int value);
-    int ReadMap(int row, int col);
-    int area_map[20][32];
+    std::shared_ptr<AICentral> _ai;
+    bool mapping{true};
+
+    void DrawMap(int row, int col, AICentral::MapObject value);
+
+    AICentral::MapObject ReadMap(int row, int col);
+
 };
+
 #endif

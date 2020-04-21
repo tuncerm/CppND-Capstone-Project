@@ -11,15 +11,16 @@
 
 class Renderer {
 public:
-    enum class ObjectType{
+    enum class ObjectType {
         kPlayer,
         kEnemy,
         kProjectile
     };
+
     Renderer(const int grid_size,
-            const int grid_width,
-            const int grid_height,
-            std::shared_ptr<GameMap> map_ptr);
+             const int grid_width,
+             const int grid_height,
+             std::shared_ptr<GameMap> map_ptr);
 
     ~Renderer();
 

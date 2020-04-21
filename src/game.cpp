@@ -2,12 +2,19 @@
 #include "game.h"
 #include <iostream>
 #include "SDL.h"
+#include <future>
+#include <thread>
+#include <memory>
 
-Game::Game(int grid_size, int grid_width, int grid_height, std::shared_ptr<GameMap> map_ptr) :
-        player(grid_size, grid_size * (grid_width / 2), grid_size * (grid_height - 2), Character::Direction::kUp, 4, map_ptr),
-        enemy(grid_size, grid_size * (grid_width / 2), grid_size * (2), Character::Direction::kDown, 2, map_ptr),
+Game::Game(int grid_size, int grid_width, int grid_height, std::shared_ptr<GameMap> map_ptr,
+           std::shared_ptr<AICentral> aiCentral) :
+        player(grid_size, grid_size * (grid_width / 2), grid_size * (grid_height - 2), Character::Direction::kUp, 4,
+               map_ptr),
+        enemy(grid_size, grid_size * (grid_width / 2), grid_size * (2), Character::Direction::kDown, 2, map_ptr,
+              aiCentral),
         _map_ptr(map_ptr),
-        _grid_size(grid_size){
+        _grid_size(grid_size),
+        _aiCentral(aiCentral) {
 }
 
 void Game::Run(Controller const &controller, Renderer &renderer, std::size_t target_frame_duration) {
@@ -23,7 +30,11 @@ void Game::Run(Controller const &controller, Renderer &renderer, std::size_t tar
 
         // Input, Update, Render - the main game loop.
         controller.HandleInput(running, player);
-        enemy.Move();
+
+        // Enemy movement. Implementing async for future reference where there will be more then one in a vector.
+        // Can do it in another thread, but task feels more appropriate.
+        std::future<void> em = std::async(&Enemy::Move, &enemy);
+        em.get();
         renderer.Render(player, enemy);
 
         frame_end = SDL_GetTicks();

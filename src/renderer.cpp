@@ -76,7 +76,7 @@ void Renderer::UpdateWindowTitle(int score, int fps) {
 
 void Renderer::RenderObject(Renderer::ObjectType ot, Character::Direction d, int posX, int posY) {
     SDL_Rect block;
-    if (ot == ObjectType::kPlayer || ot == ObjectType::kEnemy){
+    if (ot == ObjectType::kPlayer || ot == ObjectType::kEnemy) {
         if (ot == Renderer::ObjectType::kPlayer)
             SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x00, 0x00, 0xFF);
         else
@@ -87,7 +87,7 @@ void Renderer::RenderObject(Renderer::ObjectType ot, Character::Direction d, int
         block.y = posY;
         SDL_RenderFillRect(sdl_renderer, &block);
         SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x00, 0xFF, 0xFF);
-        if (d == Character::Direction::kUp){
+        if (d == Character::Direction::kUp) {
             block.w = 6;
             block.h = 8;
             block.x = posX + 8;
@@ -100,7 +100,7 @@ void Renderer::RenderObject(Renderer::ObjectType ot, Character::Direction d, int
             block.y = posY + 24;
             SDL_RenderFillRect(sdl_renderer, &block);
         }
-        if (d == Character::Direction::kDown){
+        if (d == Character::Direction::kDown) {
             block.w = 6;
             block.h = 8;
             block.x = posX + 8;
@@ -113,7 +113,7 @@ void Renderer::RenderObject(Renderer::ObjectType ot, Character::Direction d, int
             block.y = posY;
             SDL_RenderFillRect(sdl_renderer, &block);
         }
-        if (d == Character::Direction::kLeft){
+        if (d == Character::Direction::kLeft) {
             block.w = 8;
             block.h = 6;
             block.x = posX;
@@ -127,7 +127,7 @@ void Renderer::RenderObject(Renderer::ObjectType ot, Character::Direction d, int
             block.y = posY + 8;
             SDL_RenderFillRect(sdl_renderer, &block);
         }
-        if (d == Character::Direction::kRight){
+        if (d == Character::Direction::kRight) {
             block.w = 8;
             block.h = 6;
             block.x = posX + 24;
