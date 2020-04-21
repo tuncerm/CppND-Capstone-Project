@@ -5,6 +5,9 @@
 #include "player.h"
 
 void Controller::ChangeDirection(Player &player, Player::Direction input) {
+    if (player.GetY() % player.GetGridSize() || player.GetX() % player.GetGridSize()){
+        return player.Move();
+    }
     if (player.GetDirection() == input) {
         player.Move();
     } else {
