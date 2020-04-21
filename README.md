@@ -1,7 +1,7 @@
 # CPPND: Capstone Project
 
 This is my Capstone Project for the [Udacity C++ Nanodegree Program](https://www.udacity.com/course/c-plus-plus-nanodegree--nd213). The started code was provided by Udacity.
-<img src="snake_game.gif"/>
+<img src="playgame.gif"/>
 
 The Capstone Project gave me a chance to integrate what I have learned throughout this program. This project is already an important part of my portfolio to share with current and future colleagues and employers.
 
