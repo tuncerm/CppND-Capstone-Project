@@ -4,7 +4,7 @@
 
 class GameMap {
 public:
-    GameMap(int grid_height, int grid_width, int grid_size, std::vector<std::vector<int>> map_data);
+    GameMap(int grid_height, int grid_width, int grid_size);
     bool AreaIsAvailable(int row, int col) const;
     int RowCount() { return _height;}
     int ColCount() { return _width; }

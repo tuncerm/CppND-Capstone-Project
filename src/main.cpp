@@ -4,7 +4,6 @@
 #include "controller.h"
 #include "game.h"
 #include "renderer.h"
-#include "tempmap.cpp"
 #include "gamemap.h"
 
 int main() {
@@ -14,7 +13,7 @@ int main() {
     constexpr int kFramesPerSecond{60};
     constexpr int kMsPerFrame{1000 / kFramesPerSecond};
 
-    std::shared_ptr<GameMap> map_ptr = std::make_shared<GameMap>(kGridHeight, kGridWidth, kGridSize, std::move(gamemap));
+    std::shared_ptr<GameMap> map_ptr = std::make_shared<GameMap>(kGridHeight, kGridWidth, kGridSize);
     Renderer renderer(kGridSize, kGridWidth, kGridHeight, map_ptr);
     Controller controller;
     Game game(kGridSize, kGridWidth, kGridHeight, map_ptr);
