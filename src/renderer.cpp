@@ -42,7 +42,7 @@ Renderer::~Renderer() {
     SDL_Quit();
 }
 
-void Renderer::Render(Player const player, Enemy const enemy) {
+void Renderer::Render(Player &player, Enemy const enemy) {
     SDL_Rect block;
     block.w = _grid_size;
     block.h = _grid_size;
@@ -59,6 +59,10 @@ void Renderer::Render(Player const player, Enemy const enemy) {
             }
             SDL_RenderFillRect(sdl_renderer, &block);
         }
+    }
+
+    if (player.IsMoving()) {
+        player.Move();
     }
 
     RenderObject(ObjectType::kPlayer, player.GetDirection(), player.GetX(), player.GetY());

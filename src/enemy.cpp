@@ -127,6 +127,8 @@ void Enemy::Move() {
                 }
             }
             break;
+        case Direction::kNone:
+            break;
     }
 }
 

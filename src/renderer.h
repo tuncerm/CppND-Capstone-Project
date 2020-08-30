@@ -26,7 +26,7 @@ public:
 
     void RenderObject(ObjectType ot, Character::Direction d, int posX, int posY);
 
-    void Render(Player const player, Enemy const enemy);
+    void Render(Player &player, Enemy const enemy);
 
     void UpdateWindowTitle(int score, int fps);
 

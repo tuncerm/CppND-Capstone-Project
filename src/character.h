@@ -9,7 +9,7 @@
 class Character {
 public:
     enum class Direction {
-        kUp, kDown, kLeft, kRight
+        kUp, kDown, kLeft, kRight, kNone
     };
 
     Character(int grid_size, int startX, int startY, Direction direction, int speed, std::shared_ptr<GameMap> map_ptr);
@@ -28,12 +28,17 @@ public:
 
     void IsAlive(bool alive) { alive = alive; }
 
+    bool IsMoving() const { return _moving; }
+
+    void IsMoving(bool moving) { _moving = moving; }
+
 protected:
     int _grid_size;
     int _pos_x;
     int _pos_y;
     Direction _direction;
     bool _alive{true};
+    bool _moving{false};
     int _speed;
     std::shared_ptr<GameMap> _map_ptr;
 };

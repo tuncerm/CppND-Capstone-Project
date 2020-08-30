@@ -5,15 +5,18 @@
 #include "player.h"
 
 void Controller::ChangeDirection(Player &player, Player::Direction input) {
-    if (player.GetY() % player.GetGridSize() || player.GetX() % player.GetGridSize()) {
-        return player.Move();
+    if (input == Player::Direction::kNone)
+    {
+        return player.IsMoving(false);
     }
-    if (player.GetDirection() == input) {
-        player.Move();
+
+    if (player.GetDirection() != input)
+    {
+        player.IsMoving(false);
+        return player.SetDirection(input);
     } else {
-        player.SetDirection(input);
+        return player.IsMoving(true);
     }
-    return;
 }
 
 void Controller::FireProjectile(Player &player) const {
@@ -27,36 +30,39 @@ void Controller::HandlePause() const {
 }
 
 void Controller::HandleInput(bool &running, Player &player) const {
+    const Uint8 *keystates = SDL_GetKeyboardState( NULL );
+
     SDL_Event e;
-    while (SDL_PollEvent(&e)) {
-        if (e.type == SDL_QUIT) {
+    while( SDL_PollEvent( &e ) != 0 ) {
+        if( e.type == SDL_QUIT )
+        {
             running = false;
-        } else if (e.type == SDL_KEYDOWN) {
-            switch (e.key.keysym.sym) {
-                case SDLK_UP:
-                    ChangeDirection(player, Character::Direction::kUp);
-                    break;
-
-                case SDLK_DOWN:
-                    ChangeDirection(player, Character::Direction::kDown);
-                    break;
-
-                case SDLK_LEFT:
-                    ChangeDirection(player, Character::Direction::kLeft);
-                    break;
-
-                case SDLK_RIGHT:
-                    ChangeDirection(player, Character::Direction::kRight);
-                    break;
-
-                case SDLK_f:
-                    FireProjectile(player);
-                    break;
-
-                case SDLK_p:
-                    HandlePause();
-                    break;
-            }
         }
     }
+
+    if ( keystates[ SDL_SCANCODE_F ] ) {
+        FireProjectile(player);
+    }
+
+    if ( keystates[ SDL_SCANCODE_P ] ) {
+        HandlePause();
+    }
+
+    if( keystates[ SDL_SCANCODE_UP ] ) {
+        return ChangeDirection(player, Character::Direction::kUp);
+    }
+
+    if( keystates[ SDL_SCANCODE_DOWN ] ) {
+        return ChangeDirection(player, Character::Direction::kDown);
+    }
+
+    if( keystates[ SDL_SCANCODE_LEFT ] ) {
+        return ChangeDirection(player, Character::Direction::kLeft);
+    }
+
+    if( keystates[ SDL_SCANCODE_RIGHT ] ) {
+        return ChangeDirection(player, Character::Direction::kRight);
+    }
+
+    return ChangeDirection(player, Character::Direction::kNone);
 }
