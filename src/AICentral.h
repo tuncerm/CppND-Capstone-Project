@@ -19,7 +19,7 @@ public:
 
     AICentral &operator=(AICentral &&source) = delete;
 
-    ~AICentral() = default;;
+    ~AICentral() = default;
 
     // FOR FUTURE IMPLEMENTATIONS.
     // TODO : Find a way to calculate heuristic value from any point to any point...
