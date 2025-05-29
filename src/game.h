@@ -4,7 +4,8 @@
 
 #include <random>
 #include <memory>
-#include "SDL.h"
+#include <SDL3/SDL.h>
+
 #include "controller.h"
 #include "renderer.h"
 #include "character.h"

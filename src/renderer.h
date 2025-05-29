@@ -1,10 +1,10 @@
-//Copied From CppND-Capstone-Snake-Game
 #ifndef RENDERER_H
 #define RENDERER_H
 
 #include <vector>
 #include <memory>
-#include "SDL.h"
+#include <SDL3/SDL.h>
+
 #include "player.h"
 #include "enemy.h"
 #include "gamemap.h"
@@ -17,22 +17,22 @@ public:
         kProjectile
     };
 
-    Renderer(const int grid_size,
-             const int grid_width,
-             const int grid_height,
+    Renderer(int grid_size,
+             int grid_width,
+             int grid_height,
              std::shared_ptr<GameMap> map_ptr);
 
     ~Renderer();
 
     void RenderObject(ObjectType ot, Character::Direction d, int posX, int posY);
 
-    void Render(Player &player, Enemy const enemy);
+    void Render(Player &player, const Enemy enemy);
 
     void UpdateWindowTitle(int score, int fps);
 
 private:
-    SDL_Window *sdl_window;
-    SDL_Renderer *sdl_renderer;
+    SDL_Window *sdl_window = nullptr;
+    SDL_Renderer *sdl_renderer = nullptr;
 
     std::shared_ptr<GameMap> _map_ptr;
     const int _grid_size;

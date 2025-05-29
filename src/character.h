@@ -1,4 +1,4 @@
-//Copied From CppND-Capstone-Snake-Game
+// Copied From CppND-Capstone-Snake-Game
 #ifndef CHARACTER_H
 #define CHARACTER_H
 
@@ -6,10 +6,16 @@
 #include <memory>
 #include "gamemap.h"
 
-class Character {
+class Character
+{
 public:
-    enum class Direction {
-        kUp, kDown, kLeft, kRight, kNone
+    enum class Direction
+    {
+        kUp,
+        kDown,
+        kLeft,
+        kRight,
+        kNone
     };
 
     Character(int grid_size, int startX, int startY, Direction direction, int speed, std::shared_ptr<GameMap> map_ptr);
