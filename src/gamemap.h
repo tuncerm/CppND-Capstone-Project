@@ -4,7 +4,7 @@
 #include <vector>
 
 class GameMap {
-public:
+   public:
     GameMap(int grid_height, int grid_width, int grid_size);
 
     bool AreaIsAvailable(int row, int col) const;
@@ -15,12 +15,11 @@ public:
 
     int GetElement(int row, int col) { return _map[row][col]; }
 
-private:
+   private:
     int _height;
     int _width;
     int _size;
     std::vector<std::vector<int>> _map;
 };
 
-
-#endif //GAMEMAP_H
+#endif  // GAMEMAP_H

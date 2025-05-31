@@ -1,9 +1,9 @@
 #include "controller.h"
-#include <iostream>
 #include <SDL3/SDL.h>
+#include <iostream>
 #include "player.h"
 
-void Controller::ChangeDirection(Player &player, Player::Direction input) {
+void Controller::ChangeDirection(Player& player, Player::Direction input) {
     if (input == Player::Direction::kNone) {
         return player.IsMoving(false);
     }
@@ -16,7 +16,7 @@ void Controller::ChangeDirection(Player &player, Player::Direction input) {
     }
 }
 
-void Controller::FireProjectile(Player &player) const {
+void Controller::FireProjectile(Player& player) const {
     std::cout << "Fire in the hole!" << std::endl;
 }
 
@@ -24,8 +24,8 @@ void Controller::HandlePause() const {
     std::cout << "Paused" << std::endl;
 }
 
-void Controller::HandleInput(bool &running, Player &player) const {
-    const bool *keystates = SDL_GetKeyboardState(nullptr);  // SDL3 returns bool*
+void Controller::HandleInput(bool& running, Player& player) const {
+    const bool* keystates = SDL_GetKeyboardState(nullptr);  // SDL3 returns bool*
 
     SDL_Event e;
     while (SDL_PollEvent(&e)) {

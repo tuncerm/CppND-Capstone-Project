@@ -1,28 +1,28 @@
-//Copied From CppND-Capstone-Snake-Game
+// Copied From CppND-Capstone-Snake-Game
 #ifndef GAME_H
 #define GAME_H
 
-#include <random>
-#include <memory>
 #include <SDL3/SDL.h>
+#include <memory>
+#include <random>
 
-#include "controller.h"
-#include "renderer.h"
+#include "AICentral.h"
 #include "character.h"
+#include "controller.h"
 #include "enemy.h"
 #include "projectile.h"
-#include "AICentral.h"
+#include "renderer.h"
 
 class Game {
-public:
+   public:
     Game(int grid_size, int grid_width, int grid_height, std::shared_ptr<GameMap> map_ptr,
          std::shared_ptr<AICentral> aiCentral);
 
-    void Run(Controller const &controller, Renderer &renderer, std::size_t target_frame_duration);
+    void Run(Controller const& controller, Renderer& renderer, std::size_t target_frame_duration);
 
     int GetScore() const;
 
-private:
+   private:
     Player player;
     Enemy enemy;
     std::shared_ptr<AICentral> _aiCentral;

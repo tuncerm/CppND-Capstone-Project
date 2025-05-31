@@ -4,7 +4,7 @@
 #include <list>
 
 class Node {
-public:
+   public:
     Node();
 
     Node(int x, int y);
@@ -19,7 +19,7 @@ public:
 
     ~Node() = default;
 
-private:
+   private:
     int x, y, dist{255};
     std::list<Node> neighbours{};
 };

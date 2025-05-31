@@ -2,23 +2,16 @@
 #ifndef CHARACTER_H
 #define CHARACTER_H
 
-#include <vector>
 #include <memory>
+#include <vector>
 #include "gamemap.h"
 
-class Character
-{
-public:
-    enum class Direction
-    {
-        kUp,
-        kDown,
-        kLeft,
-        kRight,
-        kNone
-    };
+class Character {
+   public:
+    enum class Direction { kUp, kDown, kLeft, kRight, kNone };
 
-    Character(int grid_size, int startX, int startY, Direction direction, int speed, std::shared_ptr<GameMap> map_ptr);
+    Character(int grid_size, int startX, int startY, Direction direction, int speed,
+              std::shared_ptr<GameMap> map_ptr);
 
     virtual void Move() {};
 
@@ -38,7 +31,7 @@ public:
 
     void IsMoving(bool moving) { _moving = moving; }
 
-protected:
+   protected:
     int _grid_size;
     int _pos_x;
     int _pos_y;

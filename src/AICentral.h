@@ -2,22 +2,18 @@
 #define AICENTRAL_H
 
 class AICentral {
-public:
-    enum class MapObject {
-        kRoad,
-        kWall,
-        kDark
-    };
+   public:
+    enum class MapObject { kRoad, kWall, kDark };
 
     AICentral();
 
-    AICentral(AICentral &source) = delete;
+    AICentral(AICentral& source) = delete;
 
-    AICentral(AICentral &&source) = delete;
+    AICentral(AICentral&& source) = delete;
 
-    AICentral &operator=(AICentral &source) = delete;
+    AICentral& operator=(AICentral& source) = delete;
 
-    AICentral &operator=(AICentral &&source) = delete;
+    AICentral& operator=(AICentral&& source) = delete;
 
     ~AICentral() = default;
 
@@ -30,9 +26,8 @@ public:
 
     MapObject ReadFromMap(int row, int col);
 
-private:
+   private:
     MapObject _map[20][32];
 };
-
 
 #endif
