@@ -1,0 +1,35 @@
+[
+    {
+        "key": "ctrl+shift+f",
+        "command": "workbench.action.tasks.runTask",
+        "args": "Format All C++ Files",
+        "when": "!editorReadonly"
+    },
+    {
+        "key": "ctrl+alt+f",
+        "command": "workbench.action.tasks.runTask",
+        "args": "Format Current File",
+        "when": "editorTextFocus && resourceExtname =~ /\\.(cpp|h|c|hpp)$/"
+    },
+    {
+        "key": "ctrl+shift+alt+f",
+        "command": "workbench.action.tasks.runTask",
+        "args": "Check Format (All Files)",
+        "when": "!editorReadonly"
+    },
+    {
+        "key": "f5",
+        "command": "workbench.action.tasks.runTask",
+        "args": "Run Game"
+    },
+    {
+        "key": "ctrl+shift+b",
+        "command": "workbench.action.tasks.runTask",
+        "args": "Build Project"
+    },
+    {
+        "key": "ctrl+shift+alt+b",
+        "command": "workbench.action.tasks.runTask",
+        "args": "Clean and Rebuild"
+    }
+]

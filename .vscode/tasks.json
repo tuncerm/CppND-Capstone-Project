@@ -1,0 +1,125 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Format All C++ Files",
+            "type": "shell",
+            "command": "clang-format",
+            "args": [
+                "-i",
+                "src/*.cpp",
+                "src/*.h"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Format all C++ source files using clang-format"
+        },
+        {
+            "label": "Format Current File",
+            "type": "shell",
+            "command": "clang-format",
+            "args": [
+                "-i",
+                "${file}"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "detail": "Format the currently open C++ file"
+        },
+        {
+            "label": "Check Format (All Files)",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-Command",
+                "Get-ChildItem -Path src -Recurse -Include *.cpp,*.h | ForEach-Object { $result = clang-format --dry-run --Werror $_.FullName 2>&1; if ($LASTEXITCODE -ne 0) { Write-Host \"$($_.Name) needs formatting\" -ForegroundColor Yellow; $result } }"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "detail": "Check if any files need formatting without modifying them"
+        },
+        {
+            "label": "Build Project",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--config",
+                "Debug"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build the C++ Snake Game project"
+        },
+        {
+            "label": "Clean and Rebuild",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-Command",
+                "Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue; mkdir build; cd build; cmake ..; cmake --build ."
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Clean build directory and rebuild project from scratch"
+        },
+        {
+            "label": "Run Game",
+            "type": "shell",
+            "command": "./PlayGame.exe",
+            "options": {
+                "cwd": "${workspaceFolder}/build"
+            },
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "dependsOn": "Build Project",
+            "detail": "Build and run the Snake Game"
+        }
+    ]
+}
