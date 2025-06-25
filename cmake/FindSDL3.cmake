@@ -1,24 +1,43 @@
 # FindSDL3
 # --------
 #
-# Locate SDL3 library
+# Locate SDL3 library with robust toolchain compatibility detection
 #
 # This module defines:
 #  SDL3_FOUND - True if SDL3 was found
 #  SDL3_INCLUDE_DIRS - Include directories for SDL3
 #  SDL3_LIBRARIES - Link libraries for SDL3
 #  SDL3_VERSION_STRING - Version of SDL3 found
+#  SDL3_TOOLCHAIN_COMPATIBLE - True if found SDL3 matches current toolchain
 #
 # This module accepts the following variables:
 #  SDL3_PATH - Can be set to SDL3 install path or Windows build path
+#  SDL3_FORCE_TOOLCHAIN - Force specific toolchain (MSVC, MinGW, etc)
 
 # Copyright (c) 2025, Cross-Platform Build Configuration
 # Distributed under the OSI-approved BSD License
 
 if(NOT SDL3_FOUND)
 
-# Set up platform-specific search paths
+# Detect current toolchain
+set(SDL3_CURRENT_TOOLCHAIN "UNKNOWN")
+if(MSVC)
+    set(SDL3_CURRENT_TOOLCHAIN "MSVC")
+elseif(CMAKE_C_COMPILER_ID MATCHES "GNU")
+    if(WIN32)
+        set(SDL3_CURRENT_TOOLCHAIN "MinGW")
+    else()
+        set(SDL3_CURRENT_TOOLCHAIN "GCC")
+    endif()
+elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
+    set(SDL3_CURRENT_TOOLCHAIN "Clang")
+endif()
+
+message(STATUS "SDL3 Finder: Detected toolchain: ${SDL3_CURRENT_TOOLCHAIN}")
+
+# Set up platform-specific search paths with toolchain prioritization
 set(_SDL3_SEARCH_PATHS)
+set(_SDL3_PRIORITY_PATHS)
 
 # Common installation directories
 list(APPEND _SDL3_SEARCH_PATHS
@@ -33,33 +52,67 @@ list(APPEND _SDL3_SEARCH_PATHS
 )
 
 if(WIN32)
-  # Windows-specific paths
-  list(APPEND _SDL3_SEARCH_PATHS
-    $ENV{SDL3DIR}
-    $ENV{SDL3_DIR}
-    "[HKEY_LOCAL_MACHINE\\SOFTWARE\\SDL Development Team\\SDL 3.0.0;InstallPath]"
-    "C:/SDL3"
-    "C:/Program Files/SDL3"
-    "C:/Program Files (x86)/SDL3"
-    "${CMAKE_SOURCE_DIR}/../SDL3"
-  )
+  # Windows-specific paths with toolchain prioritization
+  if(SDL3_CURRENT_TOOLCHAIN STREQUAL "MSVC")
+    # Prioritize MSVC-compatible paths
+    list(APPEND _SDL3_PRIORITY_PATHS
+      $ENV{SDL3DIR}
+      $ENV{SDL3_DIR}
+      "C:/SDL3"
+      "C:/Program Files/SDL3"
+      "C:/Program Files (x86)/SDL3"
+      "${CMAKE_SOURCE_DIR}/../SDL3"
+      "C:/vcpkg/installed/x64-windows"
+      "C:/vcpkg/installed/x86-windows"
+      "[HKEY_LOCAL_MACHINE\\SOFTWARE\\SDL Development Team\\SDL 3.0.0;InstallPath]"
+    )
+    # MinGW paths as fallback
+    list(APPEND _SDL3_SEARCH_PATHS
+      "C:/msys64/mingw64"
+      "C:/msys64/mingw32"
+      "C:/MinGW/msys/1.0"
+    )
+  elseif(SDL3_CURRENT_TOOLCHAIN STREQUAL "MinGW")
+    # Prioritize MinGW-compatible paths
+    list(APPEND _SDL3_PRIORITY_PATHS
+      "C:/msys64/mingw64"
+      "C:/msys64/mingw32"
+      "C:/MinGW/msys/1.0"
+      $ENV{SDL3DIR}
+      $ENV{SDL3_DIR}
+    )
+    # MSVC paths as fallback
+    list(APPEND _SDL3_SEARCH_PATHS
+      "C:/SDL3"
+      "C:/Program Files/SDL3"
+      "C:/Program Files (x86)/SDL3"
+      "${CMAKE_SOURCE_DIR}/../SDL3"
+    )
+  else()
+    # Default Windows paths
+    list(APPEND _SDL3_SEARCH_PATHS
+      $ENV{SDL3DIR}
+      $ENV{SDL3_DIR}
+      "[HKEY_LOCAL_MACHINE\\SOFTWARE\\SDL Development Team\\SDL 3.0.0;InstallPath]"
+      "C:/SDL3"
+      "C:/Program Files/SDL3"
+      "C:/Program Files (x86)/SDL3"
+      "${CMAKE_SOURCE_DIR}/../SDL3"
+      "C:/msys64/mingw64"
+      "C:/msys64/mingw32"
+      "C:/vcpkg/installed/x64-windows"
+      "C:/vcpkg/installed/x86-windows"
+    )
+  endif()
 endif()
 
 # Custom path from user
 if(SDL3_PATH)
-  list(APPEND _SDL3_SEARCH_PATHS ${SDL3_PATH})
+  list(INSERT _SDL3_PRIORITY_PATHS 0 ${SDL3_PATH})
 endif()
 
-# Find include directory
-find_path(SDL3_INCLUDE_DIR
-  NAMES SDL3/SDL.h SDL.h
-  HINTS
-    ENV SDL3DIR
-    ENV SDL3_DIR
-    ${SDL3_PATH}
-  PATH_SUFFIXES include SDL3 include/SDL3
-  PATHS ${_SDL3_SEARCH_PATHS}
-)
+# Combine priority and search paths
+list(APPEND _SDL3_SEARCH_PATHS ${_SDL3_PRIORITY_PATHS})
 
 # Architecture detection for Windows
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -68,51 +121,165 @@ else()
   set(_SDL3_ARCH_SUFFIX "x86")
 endif()
 
-# Find main SDL3 library
-if(WIN32)
-  # Windows library names and paths
-  find_library(SDL3_LIBRARY_TEMP
-    NAMES SDL3 SDL3-static libSDL3 libSDL3-static
-    HINTS
-      ENV SDL3DIR
-      ENV SDL3_DIR
-      ${SDL3_PATH}
-    PATH_SUFFIXES
-      lib lib/${_SDL3_ARCH_SUFFIX}
-      lib/x64 lib/x86
-      ${_SDL3_ARCH_SUFFIX}
-    PATHS ${_SDL3_SEARCH_PATHS}
+# Function to detect toolchain compatibility of SDL3 installation
+function(check_sdl3_toolchain_compatibility SDL3_INCLUDE_PATH SDL3_LIB_PATH RESULT_VAR)
+  set(${RESULT_VAR} FALSE PARENT_SCOPE)
+
+  if(NOT SDL3_INCLUDE_PATH OR NOT SDL3_LIB_PATH)
+    return()
+  endif()
+
+  # Check if path indicates MinGW installation
+  string(FIND "${SDL3_INCLUDE_PATH}" "msys64" MSYS_FOUND)
+  string(FIND "${SDL3_INCLUDE_PATH}" "mingw" MINGW_FOUND)
+  string(FIND "${SDL3_LIB_PATH}" "msys64" MSYS_LIB_FOUND)
+  string(FIND "${SDL3_LIB_PATH}" "mingw" MINGW_LIB_FOUND)
+
+  set(IS_MINGW_PATH FALSE)
+  if(MSYS_FOUND GREATER -1 OR MINGW_FOUND GREATER -1 OR MSYS_LIB_FOUND GREATER -1 OR MINGW_LIB_FOUND GREATER -1)
+    set(IS_MINGW_PATH TRUE)
+  endif()
+
+  # Check compatibility
+  if(SDL3_CURRENT_TOOLCHAIN STREQUAL "MSVC" AND NOT IS_MINGW_PATH)
+    set(${RESULT_VAR} TRUE PARENT_SCOPE)
+    message(STATUS "SDL3 Finder: Found MSVC-compatible SDL3 at ${SDL3_INCLUDE_PATH}")
+  elseif(SDL3_CURRENT_TOOLCHAIN STREQUAL "MinGW" AND IS_MINGW_PATH)
+    set(${RESULT_VAR} TRUE PARENT_SCOPE)
+    message(STATUS "SDL3 Finder: Found MinGW-compatible SDL3 at ${SDL3_INCLUDE_PATH}")
+  elseif(NOT WIN32)
+    # On non-Windows platforms, assume compatibility
+    set(${RESULT_VAR} TRUE PARENT_SCOPE)
+  endif()
+endfunction()
+
+# Find include directory with toolchain compatibility check
+set(SDL3_INCLUDE_DIR)
+set(SDL3_TOOLCHAIN_COMPATIBLE FALSE)
+
+foreach(SEARCH_PATH ${_SDL3_PRIORITY_PATHS} ${_SDL3_SEARCH_PATHS})
+  find_path(SDL3_INCLUDE_DIR_TEMP
+    NAMES SDL3/SDL.h SDL.h
+    HINTS ${SEARCH_PATH}
+    PATH_SUFFIXES include SDL3 include/SDL3
+    NO_DEFAULT_PATH
   )
 
-  # Find SDL3main library for Windows
-  find_library(SDL3MAIN_LIBRARY
-    NAMES SDL3main SDL3main-static libSDL3main libSDL3main-static
-    HINTS
-      ENV SDL3DIR
-      ENV SDL3_DIR
-      ${SDL3_PATH}
-    PATH_SUFFIXES
-      lib lib/${_SDL3_ARCH_SUFFIX}
-      lib/x64 lib/x86
-      ${_SDL3_ARCH_SUFFIX}
-    PATHS ${_SDL3_SEARCH_PATHS}
-  )
+  if(SDL3_INCLUDE_DIR_TEMP)
+    # Check toolchain compatibility
+    check_sdl3_toolchain_compatibility("${SDL3_INCLUDE_DIR_TEMP}" "${SEARCH_PATH}" IS_COMPATIBLE)
 
-else()
-  # Unix/Linux/macOS library finding
-  find_library(SDL3_LIBRARY_TEMP
-    NAMES SDL3 libSDL3
+    if(IS_COMPATIBLE OR NOT WIN32)
+      set(SDL3_INCLUDE_DIR ${SDL3_INCLUDE_DIR_TEMP})
+      set(SDL3_TOOLCHAIN_COMPATIBLE TRUE)
+      message(STATUS "SDL3 Finder: Using toolchain-compatible SDL3 from ${SEARCH_PATH}")
+      break()
+    else()
+      message(STATUS "SDL3 Finder: Found incompatible SDL3 at ${SEARCH_PATH} (toolchain: ${SDL3_CURRENT_TOOLCHAIN})")
+    endif()
+  endif()
+
+  unset(SDL3_INCLUDE_DIR_TEMP CACHE)
+endforeach()
+
+# If no compatible SDL3 found, fall back to any available SDL3
+if(NOT SDL3_INCLUDE_DIR)
+  message(WARNING "SDL3 Finder: No toolchain-compatible SDL3 found, falling back to any available SDL3...")
+
+  find_path(SDL3_INCLUDE_DIR
+    NAMES SDL3/SDL.h SDL.h
     HINTS
       ENV SDL3DIR
       ENV SDL3_DIR
       ${SDL3_PATH}
-    PATH_SUFFIXES lib lib64 lib32
+    PATH_SUFFIXES include SDL3 include/SDL3
     PATHS ${_SDL3_SEARCH_PATHS}
   )
 endif()
 
+# Find main SDL3 library with toolchain compatibility
+set(SDL3_LIBRARY_TEMP)
+
+if(SDL3_INCLUDE_DIR)
+  # Get the base path from include directory
+  get_filename_component(SDL3_BASE_PATH "${SDL3_INCLUDE_DIR}" DIRECTORY)
+
+  if(WIN32)
+    # Windows library names and paths
+    find_library(SDL3_LIBRARY_TEMP
+      NAMES SDL3 SDL3-static libSDL3 libSDL3-static
+      HINTS ${SDL3_BASE_PATH}
+      PATH_SUFFIXES
+        lib lib/${_SDL3_ARCH_SUFFIX}
+        lib/x64 lib/x86
+        ${_SDL3_ARCH_SUFFIX}
+      NO_DEFAULT_PATH
+    )
+
+    # Find SDL3main library for Windows
+    find_library(SDL3MAIN_LIBRARY
+      NAMES SDL3main SDL3main-static libSDL3main libSDL3main-static
+      HINTS ${SDL3_BASE_PATH}
+      PATH_SUFFIXES
+        lib lib/${_SDL3_ARCH_SUFFIX}
+        lib/x64 lib/x86
+        ${_SDL3_ARCH_SUFFIX}
+      NO_DEFAULT_PATH
+    )
+  else()
+    # Unix/Linux/macOS library finding
+    find_library(SDL3_LIBRARY_TEMP
+      NAMES SDL3 libSDL3
+      HINTS ${SDL3_BASE_PATH}
+      PATH_SUFFIXES lib lib64 lib32
+      NO_DEFAULT_PATH
+    )
+  endif()
+endif()
+
+# Fallback library search if not found in compatible location
+if(NOT SDL3_LIBRARY_TEMP)
+  if(WIN32)
+    find_library(SDL3_LIBRARY_TEMP
+      NAMES SDL3 SDL3-static libSDL3 libSDL3-static
+      HINTS
+        ENV SDL3DIR
+        ENV SDL3_DIR
+        ${SDL3_PATH}
+      PATH_SUFFIXES
+        lib lib/${_SDL3_ARCH_SUFFIX}
+        lib/x64 lib/x86
+        ${_SDL3_ARCH_SUFFIX}
+      PATHS ${_SDL3_SEARCH_PATHS}
+    )
+
+    find_library(SDL3MAIN_LIBRARY
+      NAMES SDL3main SDL3main-static libSDL3main libSDL3main-static
+      HINTS
+        ENV SDL3DIR
+        ENV SDL3_DIR
+        ${SDL3_PATH}
+      PATH_SUFFIXES
+        lib lib/${_SDL3_ARCH_SUFFIX}
+        lib/x64 lib/x86
+        ${_SDL3_ARCH_SUFFIX}
+      PATHS ${_SDL3_SEARCH_PATHS}
+    )
+  else()
+    find_library(SDL3_LIBRARY_TEMP
+      NAMES SDL3 libSDL3
+      HINTS
+        ENV SDL3DIR
+        ENV SDL3_DIR
+        ${SDL3_PATH}
+      PATH_SUFFIXES lib lib64 lib32
+      PATHS ${_SDL3_SEARCH_PATHS}
+    )
+  endif()
+endif()
+
 # Handle framework on macOS
-if(APPLE)
+if(APPLE AND NOT SDL3_LIBRARY_TEMP)
   find_library(SDL3_LIBRARY_TEMP
     NAMES SDL3
     HINTS
@@ -230,6 +397,12 @@ find_package_handle_standard_args(SDL3
 )
 
 if(SDL3_FOUND)
+  # Warn about toolchain compatibility
+  if(WIN32 AND NOT SDL3_TOOLCHAIN_COMPATIBLE)
+    message(WARNING "SDL3 Finder: Found SDL3 but it may not be compatible with current toolchain (${SDL3_CURRENT_TOOLCHAIN})")
+    message(WARNING "SDL3 Finder: This may cause compilation errors. Consider installing SDL3 for ${SDL3_CURRENT_TOOLCHAIN}")
+  endif()
+
   # Create imported target for modern CMake usage
   if(NOT TARGET SDL3::SDL3)
     add_library(SDL3::SDL3 UNKNOWN IMPORTED)
@@ -252,6 +425,7 @@ endif()
 unset(SDL3_LIBRARY_TEMP)
 unset(SDL3MAIN_LIBRARY)
 unset(_SDL3_SEARCH_PATHS)
+unset(_SDL3_PRIORITY_PATHS)
 unset(_SDL3_ARCH_SUFFIX)
 
 mark_as_advanced(SDL3_INCLUDE_DIR SDL3_LIBRARY_TEMP SDL3MAIN_LIBRARY)
