@@ -17,7 +17,7 @@
  * Text renderer context structure
  * Holds SDL renderer reference and rendering state
  */
-typedef struct {
+typedef struct TextRenderer {
     SDL_Renderer* renderer;
     bool initialized;
     SDL_Color default_color;

@@ -35,8 +35,24 @@ target_include_directories(shared_components PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# Link SDL3 dependencies
-target_link_libraries(shared_components PUBLIC SDL3::SDL3)
-
 # Set C standard
 set_property(TARGET shared_components PROPERTY C_STANDARD 11)
+
+# Find SDL3 if not already found
+if(NOT TARGET SDL3::SDL3)
+    find_package(SDL3 REQUIRED)
+endif()
+
+# Link SDL3 dependencies - handle both SDL3::SDL3 and raw SDL3_LIBRARIES
+if(TARGET SDL3::SDL3)
+    target_link_libraries(shared_components PUBLIC SDL3::SDL3)
+elseif(SDL3_LIBRARIES)
+    target_link_libraries(shared_components PUBLIC ${SDL3_LIBRARIES})
+else()
+    message(FATAL_ERROR "SDL3 not found - cannot build shared_components")
+endif()
+
+# Include SDL3 directories
+if(SDL3_INCLUDE_DIRS)
+    target_include_directories(shared_components PUBLIC ${SDL3_INCLUDE_DIRS})
+endif()

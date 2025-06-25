@@ -44,6 +44,12 @@ endif()
 # Set module path for custom Find modules (use parent's cmake modules)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../cmake/")
 
+# Check if shared_components target exists, if not, add the shared directory
+if(NOT TARGET shared_components)
+    message(STATUS "PaletteMaker: Adding shared components library")
+    add_subdirectory(../shared shared_build)
+endif()
+
 # Find SDL3 with cross-platform support
 find_package(SDL3 REQUIRED)
 

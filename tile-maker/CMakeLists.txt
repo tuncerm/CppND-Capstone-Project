@@ -62,6 +62,12 @@ endif()
 # Set module path for custom Find modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../cmake/")
 
+# Check if shared_components target exists, if not, add the shared directory
+if(NOT TARGET shared_components)
+    message(STATUS "TileMaker: Adding shared components library")
+    add_subdirectory(../shared shared_build)
+endif()
+
 # Find SDL3 with toolchain compatibility checking
 find_package(SDL3 REQUIRED)
 
