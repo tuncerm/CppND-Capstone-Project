@@ -7,20 +7,25 @@
 /**
  * UI layout constants
  */
-#define WINDOW_WIDTH 320
-#define WINDOW_HEIGHT 240
-#define SWATCH_SIZE 40
+#define WINDOW_WIDTH 800
+#define WINDOW_HEIGHT 600
+#define SWATCH_SIZE 45
 #define SWATCH_BORDER 2
 #define GRID_COLS 4
 #define GRID_ROWS 4
-#define GRID_START_X 10
-#define GRID_START_Y 10
-#define UI_PANEL_X 180
-#define UI_PANEL_Y 10
-#define INPUT_FIELD_WIDTH 60
-#define INPUT_FIELD_HEIGHT 20
-#define BUTTON_WIDTH 80
-#define BUTTON_HEIGHT 25
+#define GRID_START_X 20
+#define GRID_START_Y 20
+#define UI_PANEL_X 220
+#define UI_PANEL_Y 20
+#define UI_PANEL_W 320
+#define UI_PANEL_H 300
+#define UI_PANEL_ROW_H 30
+#define BUTTON_WIDTH 30
+#define BUTTON_HEIGHT 20
+#define VALUE_DISPLAY_WIDTH 45
+#define VALUE_DISPLAY_HEIGHT 20
+#define ACTION_BUTTON_WIDTH 80
+#define ACTION_BUTTON_HEIGHT 25
 
 /**
  * UI state structure
@@ -33,15 +38,6 @@ typedef struct {
     int selected_swatch;     // Currently selected swatch index (0-15)
     bool color_picker_open;  // Is color picker dialog open
     bool show_save_dialog;   // Show save file dialog
-    bool show_load_dialog;   // Show load file dialog
-
-    // Input field states for RGBA values
-    bool editing_r, editing_g, editing_b, editing_a;
-    char input_r[4], input_g[4], input_b[4], input_a[4];
-
-    // File dialog state
-    char file_input[256];
-    bool editing_filename;
 
     // Mouse interaction
     int mouse_x, mouse_y;
@@ -116,24 +112,6 @@ void ui_open_color_picker(UIState* ui, Palette* palette);
 void ui_close_color_picker(UIState* ui);
 
 /**
- * Update RGBA input fields from selected color
- * Synchronizes input fields with currently selected swatch
- *
- * @param ui Pointer to UI state structure
- * @param palette Pointer to palette structure
- */
-void ui_update_rgba_fields(UIState* ui, const Palette* palette);
-
-/**
- * Apply RGBA input field values to selected color
- * Updates palette color from input field values
- *
- * @param ui Pointer to UI state structure
- * @param palette Pointer to palette structure
- */
-void ui_apply_rgba_fields(UIState* ui, Palette* palette);
-
-/**
  * Show save file dialog
  *
  * @param ui Pointer to UI state structure
@@ -141,11 +119,24 @@ void ui_apply_rgba_fields(UIState* ui, Palette* palette);
 void ui_show_save_dialog(UIState* ui);
 
 /**
- * Show load file dialog
+ * Reset palette to default colors
  *
  * @param ui Pointer to UI state structure
+ * @param palette Pointer to palette structure
  */
-void ui_show_load_dialog(UIState* ui);
+void ui_reset_palette(UIState* ui, Palette* palette);
+
+/**
+ * Handle button clicks for RGBA value adjustment
+ * Handles increment/decrement buttons for RGBA values
+ *
+ * @param ui Pointer to UI state structure
+ * @param palette Pointer to palette structure
+ * @param x Mouse X coordinate
+ * @param y Mouse Y coordinate
+ * @return true if a button was clicked, false otherwise
+ */
+bool ui_handle_rgba_button_click(UIState* ui, Palette* palette, int x, int y);
 
 /**
  * Check for unsaved changes and prompt user
@@ -194,5 +185,14 @@ void ui_render_rect(UIState* ui, int x, int y, int w, int h, SDL_Color color);
  * @param color Border color
  */
 void ui_render_rect_outline(UIState* ui, int x, int y, int w, int h, SDL_Color color);
+
+/**
+ * Render RGBA control buttons
+ * Renders increment/decrement buttons for RGBA values
+ *
+ * @param ui Pointer to UI state structure
+ * @param palette Pointer to palette structure
+ */
+void ui_render_rgba_controls(UIState* ui, const Palette* palette);
 
 #endif  // UI_H

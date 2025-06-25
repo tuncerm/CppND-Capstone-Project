@@ -4,7 +4,7 @@
 #include <string.h>
 
 // Double-click detection threshold (milliseconds)
-#define DOUBLE_CLICK_TIME 500
+#define DOUBLE_CLICK_TIME 300
 
 /**
  * Initialize UI system
@@ -19,7 +19,6 @@ bool ui_init(UIState* ui) {
     ui->selected_swatch = 0;
     ui->color_picker_open = false;
     ui->show_save_dialog = false;
-    ui->show_load_dialog = false;
     ui->last_click_swatch = -1;
 
     // Create window
@@ -84,10 +83,8 @@ bool ui_handle_event(UIState* ui, Palette* palette, SDL_Event* event) {
                 case SDLK_ESCAPE:
                     if (ui->color_picker_open) {
                         ui_close_color_picker(ui);
-                    } else if (ui->show_save_dialog || ui->show_load_dialog) {
+                    } else if (ui->show_save_dialog) {
                         ui->show_save_dialog = false;
-                        ui->show_load_dialog = false;
-                        ui->editing_filename = false;
                     } else {
                         // Quit application with unsaved changes check
                         return !ui_check_unsaved_changes(ui, palette);
@@ -95,76 +92,15 @@ bool ui_handle_event(UIState* ui, Palette* palette, SDL_Event* event) {
                     break;
 
                 case SDLK_S:
-                    if (event->key.mod & SDL_KMOD_CTRL) {
-                        // Ctrl+S: Quick save
-                        if (strlen(palette->current_file) > 0) {
-                            palette_save(palette, palette->current_file);
-                            palette_mark_saved(palette);
-                        } else {
-                            ui_show_save_dialog(ui);
-                        }
-                    } else {
-                        // S: Show save dialog
-                        ui_show_save_dialog(ui);
-                    }
+                    ui_show_save_dialog(ui);
                     break;
 
-                case SDLK_L:
-                    if (event->key.mod & SDL_KMOD_CTRL) {
-                        // Ctrl+L: Show load dialog
-                        ui_show_load_dialog(ui);
-                    }
-                    break;
-
-                case SDLK_RETURN:
-                    if (ui->show_save_dialog) {
-                        // Execute save
-                        if (strlen(ui->file_input) > 0) {
-                            if (palette_save(palette, ui->file_input)) {
-                                palette_mark_saved(palette);
-                                strncpy(palette->current_file, ui->file_input,
-                                        sizeof(palette->current_file) - 1);
-                            }
-                            ui->show_save_dialog = false;
-                            ui->editing_filename = false;
-                        }
-                    } else if (ui->show_load_dialog) {
-                        // Execute load
-                        if (strlen(ui->file_input) > 0) {
-                            palette_load(palette, ui->file_input);
-                            ui->show_load_dialog = false;
-                            ui->editing_filename = false;
-                            ui_update_rgba_fields(ui, palette);
-                        }
-                    }
+                case SDLK_R:
+                    ui_reset_palette(ui, palette);
                     break;
 
                 default:
-                    // Handle text input for RGBA fields and filename
-                    if (ui->editing_filename || ui->editing_r || ui->editing_g || ui->editing_b ||
-                        ui->editing_a) {
-                        // Text input handled in SDL_EVENT_TEXT_INPUT
-                    }
                     break;
-            }
-            break;
-
-        case SDL_EVENT_TEXT_INPUT:
-            // Handle text input for various fields
-            if (ui->editing_filename && strlen(ui->file_input) < 255) {
-                strcat(ui->file_input, event->text.text);
-            } else if (ui->editing_r && strlen(ui->input_r) < 3) {
-                strcat(ui->input_r, event->text.text);
-                ui_apply_rgba_fields(ui, palette);
-            } else if (ui->editing_g && strlen(ui->input_g) < 3) {
-                strcat(ui->input_g, event->text.text);
-                ui_apply_rgba_fields(ui, palette);
-            } else if (ui->editing_b && strlen(ui->input_b) < 3) {
-                strcat(ui->input_b, event->text.text);
-                ui_apply_rgba_fields(ui, palette);
-            } else if (ui->editing_a && strlen(ui->input_a) < 3) {
-                strcat(ui->input_a, event->text.text);
-                ui_apply_rgba_fields(ui, palette);
             }
             break;
 
@@ -173,6 +109,12 @@ bool ui_handle_event(UIState* ui, Palette* palette, SDL_Event* event) {
                 ui->mouse_down = true;
                 ui->mouse_x = (int)event->button.x;
                 ui->mouse_y = (int)event->button.y;
+
+                // Check if clicking on RGBA buttons first
+                if (ui_handle_rgba_button_click(ui, palette, ui->mouse_x, ui->mouse_y)) {
+                    // RGBA button was clicked, handled by function
+                    break;
+                }
 
                 // Check if clicking on swatch
                 int swatch = ui_get_swatch_at_position(ui->mouse_x, ui->mouse_y);
@@ -184,10 +126,11 @@ bool ui_handle_event(UIState* ui, Palette* palette, SDL_Event* event) {
                         // Double-click: open color picker
                         ui->selected_swatch = swatch;
                         ui_open_color_picker(ui, palette);
+                        printf("Double-click detected on swatch %d\n", swatch);
                     } else {
                         // Single click: select swatch
                         ui->selected_swatch = swatch;
-                        ui_update_rgba_fields(ui, palette);
+                        printf("Selected swatch %d\n", swatch);
                     }
 
                     ui->last_click_swatch = swatch;
@@ -252,80 +195,62 @@ void ui_render(UIState* ui, const Palette* palette) {
 
     // Render UI panel
     SDL_Color panel_bg = {32, 32, 32, 255};
-    ui_render_rect(ui, UI_PANEL_X, UI_PANEL_Y, 130, 200, panel_bg);
+    ui_render_rect(ui, UI_PANEL_X, UI_PANEL_Y, UI_PANEL_W, UI_PANEL_H, panel_bg);
 
-    // Render RGBA input fields
-    PaletteColor selected_color = palette_get_color(palette, ui->selected_swatch);
+    // Render RGBA button controls
+    ui_render_rgba_controls(ui, palette);
+
+    // Render action buttons
     SDL_Color white = {255, 255, 255, 255};
-    SDL_Color input_bg = {48, 48, 48, 255};
-
-    int field_y = UI_PANEL_Y + 20;
-
-    // Red field
-    ui_render_text(ui, "R:", UI_PANEL_X + 5, field_y, white);
-    ui_render_rect(ui, UI_PANEL_X + 20, field_y, INPUT_FIELD_WIDTH, INPUT_FIELD_HEIGHT, input_bg);
-    char r_str[4];
-    snprintf(r_str, sizeof(r_str), "%d", selected_color.r);
-    ui_render_text(ui, r_str, UI_PANEL_X + 25, field_y + 3, white);
-
-    // Green field
-    field_y += 25;
-    ui_render_text(ui, "G:", UI_PANEL_X + 5, field_y, white);
-    ui_render_rect(ui, UI_PANEL_X + 20, field_y, INPUT_FIELD_WIDTH, INPUT_FIELD_HEIGHT, input_bg);
-    char g_str[4];
-    snprintf(g_str, sizeof(g_str), "%d", selected_color.g);
-    ui_render_text(ui, g_str, UI_PANEL_X + 25, field_y + 3, white);
-
-    // Blue field
-    field_y += 25;
-    ui_render_text(ui, "B:", UI_PANEL_X + 5, field_y, white);
-    ui_render_rect(ui, UI_PANEL_X + 20, field_y, INPUT_FIELD_WIDTH, INPUT_FIELD_HEIGHT, input_bg);
-    char b_str[4];
-    snprintf(b_str, sizeof(b_str), "%d", selected_color.b);
-    ui_render_text(ui, b_str, UI_PANEL_X + 25, field_y + 3, white);
-
-    // Alpha field
-    field_y += 25;
-    ui_render_text(ui, "A:", UI_PANEL_X + 5, field_y, white);
-    ui_render_rect(ui, UI_PANEL_X + 20, field_y, INPUT_FIELD_WIDTH, INPUT_FIELD_HEIGHT, input_bg);
-    char a_str[4];
-    snprintf(a_str, sizeof(a_str), "%d", selected_color.a);
-    ui_render_text(ui, a_str, UI_PANEL_X + 25, field_y + 3, white);
-
-    // Render buttons
-    field_y += 40;
     SDL_Color button_bg = {64, 64, 64, 255};
+    int button_y = UI_PANEL_Y + 250;
 
     // Save button
-    ui_render_rect(ui, UI_PANEL_X + 5, field_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
-    ui_render_text(ui, "Save (S)", UI_PANEL_X + 10, field_y + 5, white);
+    ui_render_rect(ui, UI_PANEL_X + 10, button_y, 100, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "Save (S)", UI_PANEL_X + 15, button_y + 5, white);
 
-    // Load button
-    field_y += 30;
-    ui_render_rect(ui, UI_PANEL_X + 5, field_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
-    ui_render_text(ui, "Load (L)", UI_PANEL_X + 10, field_y + 5, white);
+    // Reset button
+    ui_render_rect(ui, UI_PANEL_X + 120, button_y, 100, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "Reset (R)", UI_PANEL_X + 125, button_y + 5, white);
 
     // Show modification indicator
     if (palette_is_modified(palette)) {
         SDL_Color red = {255, 0, 0, 255};
-        ui_render_text(ui, "* Modified", UI_PANEL_X + 5, field_y + 35, red);
+        ui_render_text(ui, "* Modified", UI_PANEL_X + 10, button_y + 35, red);
     }
 
-    // Render dialogs
-    if (ui->show_save_dialog || ui->show_load_dialog) {
+    // Render color picker dialog
+    if (ui->color_picker_open) {
+        // Color picker background
+        SDL_Color picker_bg = {40, 40, 40, 240};
+        ui_render_rect(ui, 40, 60, 240, 120, picker_bg);
+
+        // Title
+        ui_render_text(ui, "Color Picker", 50, 70, white);
+        char title_info[32];
+        snprintf(title_info, sizeof(title_info), "Editing Swatch %d", ui->selected_swatch);
+        ui_render_text(ui, title_info, 50, 85, white);
+
+        // Show current color preview
+        PaletteColor current = palette_get_color(palette, ui->selected_swatch);
+        SDL_Color preview_color = {current.r, current.g, current.b, current.a};
+        ui_render_rect(ui, 200, 70, 40, 40, preview_color);
+
+        // Instructions
+        ui_render_text(ui, "Click RGBA fields to edit", 50, 120, white);
+        ui_render_text(ui, "Press ESC to close", 50, 135, white);
+        ui_render_text(ui, "Tab to move between fields", 50, 150, white);
+    }
+
+    // Render save dialog (simplified - no text input)
+    if (ui->show_save_dialog) {
         // Dialog background
         SDL_Color dialog_bg = {0, 0, 0, 200};
         ui_render_rect(ui, 50, 80, 220, 80, dialog_bg);
 
-        const char* title = ui->show_save_dialog ? "Save Palette" : "Load Palette";
-        ui_render_text(ui, title, 60, 90, white);
-
-        // File input field
-        SDL_Color input_field_bg = {32, 32, 32, 255};
-        ui_render_rect(ui, 60, 110, 200, 20, input_field_bg);
-        ui_render_text(ui, ui->file_input, 65, 113, white);
-
-        ui_render_text(ui, "Press Enter to confirm, Esc to cancel", 60, 135, white);
+        ui_render_text(ui, "Save Palette", 60, 90, white);
+        ui_render_text(ui, "Default: palette.dat", 60, 110, white);
+        ui_render_text(ui, "Press Enter to save, Esc to cancel", 60, 130, white);
     }
 
     // Present the rendered frame
@@ -367,7 +292,6 @@ void ui_open_color_picker(UIState* ui, Palette* palette) {
         return;
 
     ui->color_picker_open = true;
-    ui_update_rgba_fields(ui, palette);
     printf("Color picker opened for swatch %d\n", ui->selected_swatch);
 }
 
@@ -379,38 +303,19 @@ void ui_close_color_picker(UIState* ui) {
         return;
 
     ui->color_picker_open = false;
-    ui->editing_r = ui->editing_g = ui->editing_b = ui->editing_a = false;
     printf("Color picker closed\n");
 }
 
 /**
- * Update RGBA input fields from selected color
+ * Reset palette to default colors
  */
-void ui_update_rgba_fields(UIState* ui, const Palette* palette) {
+void ui_reset_palette(UIState* ui, Palette* palette) {
     if (!ui || !palette)
         return;
 
-    PaletteColor color = palette_get_color(palette, ui->selected_swatch);
-    snprintf(ui->input_r, sizeof(ui->input_r), "%d", color.r);
-    snprintf(ui->input_g, sizeof(ui->input_g), "%d", color.g);
-    snprintf(ui->input_b, sizeof(ui->input_b), "%d", color.b);
-    snprintf(ui->input_a, sizeof(ui->input_a), "%d", color.a);
-}
-
-/**
- * Apply RGBA field values to selected color
- */
-void ui_apply_rgba_fields(UIState* ui, Palette* palette) {
-    if (!ui || !palette)
-        return;
-
-    int r = atoi(ui->input_r);
-    int g = atoi(ui->input_g);
-    int b = atoi(ui->input_b);
-    int a = atoi(ui->input_a);
-
-    PaletteColor new_color = palette_make_color(r, g, b, a);
-    palette_set_color(palette, ui->selected_swatch, new_color);
+    // Reset to default 16-color palette
+    palette_reset_to_default(palette);
+    printf("Palette reset to default colors\n");
 }
 
 /**
@@ -421,22 +326,7 @@ void ui_show_save_dialog(UIState* ui) {
         return;
 
     ui->show_save_dialog = true;
-    ui->show_load_dialog = false;
-    ui->editing_filename = true;
-    strcpy(ui->file_input, "palette.dat");
-}
-
-/**
- * Show load file dialog
- */
-void ui_show_load_dialog(UIState* ui) {
-    if (!ui)
-        return;
-
-    ui->show_load_dialog = true;
-    ui->show_save_dialog = false;
-    ui->editing_filename = true;
-    strcpy(ui->file_input, "palette.dat");
+    printf("Save dialog opened\n");
 }
 
 /**
@@ -456,22 +346,182 @@ bool ui_check_unsaved_changes(UIState* ui, const Palette* palette) {
     return true;  // Safe to proceed
 }
 
-/**
- * Simple text rendering (placeholder implementation)
- */
-void ui_render_text(UIState* ui, const char* text, int x, int y, SDL_Color color) {
-    if (!ui || !text)
-        return;
+/* ----------------------------------------------------------------
+ * Simple 5×7 bitmap font with extended special‑character support
+ * ----------------------------------------------------------------
+ *==============================
+ * 1. Character → glyph index
+ *==============================*/
+static inline int get_char_index(char c) {
+    if (c == ' ')
+        return 0;
+    if (c >= '0' && c <= '9')
+        return 1 + (c - '0'); /* 1‑10 */
+    if (c >= 'A' && c <= 'Z')
+        return 11 + (c - 'A'); /* 11‑36 */
+    if (c >= 'a' && c <= 'z')
+        return 11 + (c - 'a'); /* map lowercase → uppercase */
 
-    // This is a simplified text rendering
-    // In a full implementation, you would use SDL_ttf or bitmap fonts
-    // For now, we'll just draw small rectangles to represent text
+    /* Ordered ASCII specials → 37‑59 */
+    switch (c) {
+        case '.':
+            return 37; /* period */
+        case ',':
+            return 38; /* comma  */
+        case ';':
+            return 39; /* semicolon */
+        case ':':
+            return 40; /* colon */
+        case '!':
+            return 41;
+        case '?':
+            return 42;
+        case '-':
+            return 43;
+        case '_':
+            return 44;
+        case '+':
+            return 45;
+        case '=':
+            return 46;
+        case '*':
+            return 47;
+        case '/':
+            return 48;
+        case '\\':
+            return 49;
+        case '<':
+            return 50;
+        case '>':
+            return 51;
+        case '(':
+            return 52;
+        case ')':
+            return 53;
+        case '&':
+            return 54;
+        case '%':
+            return 55;
+        case '\'':
+            return 56; /* apostrophe */
+        case '"':
+            return 57; /* double quote */
+        /* 58 → right‑arrow, 59 → left‑arrow (no ASCII) */
+        default:
+            return 0; /* unknown → space */
+    }
+}
+
+/* Total number of glyphs in the table below */
+#define GLYPH_COUNT 60 /* indices 0‑59 */
+
+/*==============================
+ * 2. 5×7 glyph bit‑patterns
+ *==============================*/
+/* Each glyph: 7 rows × 5 cols, MSB is left‑most pixel */
+static const uint8_t font_patterns[GLYPH_COUNT][7] = {
+    /* 0  : space */
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+
+    /* 1‑10 : '0'‑'9' */
+    {0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E}, /* 1 → '0' */
+    {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E}, /* 2 → '1' */
+    {0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F}, /* 3 → '2' */
+    {0x1F, 0x02, 0x04, 0x02, 0x01, 0x11, 0x0E}, /* 4 → '3' */
+    {0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02}, /* 5 → '4' */
+    {0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E}, /* 6 → '5' */
+    {0x06, 0x08, 0x10, 0x1E, 0x11, 0x11, 0x0E}, /* 7 → '6' */
+    {0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08}, /* 8 → '7' */
+    {0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E}, /* 9 → '8' */
+    {0x0E, 0x11, 0x11, 0x0F, 0x01, 0x02, 0x0C}, /* 10 → '9' */
+
+    /* 11‑36 : 'A'‑'Z' */
+    {0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}, /* 11 */
+    {0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E}, /* 12 */
+    {0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E}, /* 13 */
+    {0x1C, 0x12, 0x11, 0x11, 0x11, 0x12, 0x1C}, /* 14 */
+    {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F}, /* 15 */
+    {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10}, /* 16 */
+    {0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0F}, /* 17 */
+    {0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}, /* 18 */
+    {0x0E, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0E}, /* 19 */
+    {0x07, 0x02, 0x02, 0x02, 0x02, 0x12, 0x0C}, /* 20 */
+    {0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11}, /* 21 */
+    {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F}, /* 22 */
+    {0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11}, /* 23 */
+    {0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11}, /* 24 */
+    {0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E}, /* 25 */
+    {0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10}, /* 26 */
+    {0x0E, 0x11, 0x11, 0x15, 0x12, 0x0E, 0x01}, /* 27 */
+    {0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11}, /* 28 */
+    {0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E}, /* 29 */
+    {0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04}, /* 30 */
+    {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E}, /* 31 */
+    {0x11, 0x11, 0x11, 0x11, 0x0A, 0x0A, 0x04}, /* 32 */
+    {0x11, 0x11, 0x11, 0x15, 0x15, 0x1B, 0x11}, /* 33 */
+    {0x11, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x11}, /* 34 */
+    {0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04}, /* 35 */
+    {0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F}, /* 36 */
+
+    /* 37‑59 : ordered specials */
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00}, /* 37 '.' */
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x08}, /* 38 ',' */
+    {0x00, 0x00, 0x04, 0x00, 0x00, 0x04, 0x08}, /* 39 ';' */
+    {0x00, 0x00, 0x04, 0x00, 0x00, 0x04, 0x00}, /* 40 ':' */
+    {0x04, 0x04, 0x04, 0x04, 0x00, 0x04, 0x00}, /* 41 '!' */
+    {0x0E, 0x11, 0x02, 0x04, 0x00, 0x04, 0x00}, /* 42 '?' */
+    {0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00}, /* 43 '-' */
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F}, /* 44 '_' */
+    {0x00, 0x04, 0x04, 0x1F, 0x04, 0x04, 0x00}, /* 45 '+' */
+    {0x00, 0x0E, 0x00, 0x0E, 0x00, 0x0E, 0x00}, /* 46 '=' */
+    {0x04, 0x0A, 0x11, 0x1F, 0x11, 0x11, 0x11}, /* 47 '*' */
+    {0x01, 0x02, 0x04, 0x08, 0x10, 0x00, 0x00}, /* 48 '/' */
+    {0x10, 0x08, 0x04, 0x02, 0x01, 0x00, 0x00}, /* 49 '\' */
+    {0x00, 0x04, 0x08, 0x10, 0x08, 0x04, 0x00}, /* 50 '<' */
+    {0x00, 0x10, 0x08, 0x04, 0x08, 0x10, 0x00}, /* 51 '>' */
+    {0x08, 0x0C, 0x0A, 0x09, 0x0A, 0x0C, 0x08}, /* 52 '(' */
+    {0x02, 0x06, 0x0A, 0x12, 0x0A, 0x06, 0x02}, /* 53 ')' */
+    {0x0A, 0x15, 0x15, 0x0E, 0x04, 0x04, 0x04}, /* 54 '&' */
+    {0x06, 0x09, 0x06, 0x15, 0x09, 0x09, 0x16}, /* 55 '%' */
+    {0x02, 0x05, 0x02, 0x00, 0x00, 0x00, 0x00}, /* 56 '\'' */
+    {0x0A, 0x0A, 0x0A, 0x00, 0x00, 0x00, 0x00}, /* 57 '"' */
+    {0x00, 0x04, 0x02, 0x1F, 0x02, 0x04, 0x00}, /* 58 '→' */
+    {0x00, 0x02, 0x04, 0x1F, 0x04, 0x02, 0x00}, /* 59 '←' */
+};
+
+/*==============================
+ * 3. Sanity check (debug builds)
+ *==============================*/
+static inline void font_assert_init(void) {
+#if !defined(NDEBUG)
+    assert(GLYPH_COUNT == (int)(sizeof font_patterns / sizeof font_patterns[0]));
+#endif
+}
+
+/*==============================
+ * 4. Text‑render helper
+ *==============================*/
+void ui_render_text(UIState* ui, const char* text, int x, int y, SDL_Color color) {
+    if (!ui || !text) {
+        return;
+    }
+
     SDL_SetRenderDrawColor(ui->renderer, color.r, color.g, color.b, color.a);
 
     int len = (int)strlen(text);
-    for (int i = 0; i < len && i < 20; i++) {
-        SDL_FRect rect = {(float)(x + i * 8), (float)y, 6, 12};
-        SDL_RenderFillRect(ui->renderer, &rect);
+    for (int i = 0; i < len && i < 32; i++) {
+        int char_index = get_char_index(text[i]);
+        const uint8_t* pattern = font_patterns[char_index < 52 ? char_index : 0];
+
+        // Draw character using bitmap pattern
+        for (int row = 0; row < 7; row++) {
+            for (int col = 0; col < 5; col++) {
+                if (pattern[row] & (1 << (4 - col))) {
+                    SDL_FRect pixel = {(float)(x + i * 6 + col), (float)(y + row), 1.0f, 1.0f};
+                    SDL_RenderFillRect(ui->renderer, &pixel);
+                }
+            }
+        }
     }
 }
 
@@ -479,8 +529,9 @@ void ui_render_text(UIState* ui, const char* text, int x, int y, SDL_Color color
  * Render filled rectangle
  */
 void ui_render_rect(UIState* ui, int x, int y, int w, int h, SDL_Color color) {
-    if (!ui)
+    if (!ui) {
         return;
+    }
 
     SDL_SetRenderDrawColor(ui->renderer, color.r, color.g, color.b, color.a);
     SDL_FRect rect = {(float)x, (float)y, (float)w, (float)h};
@@ -491,10 +542,262 @@ void ui_render_rect(UIState* ui, int x, int y, int w, int h, SDL_Color color) {
  * Render rectangle outline
  */
 void ui_render_rect_outline(UIState* ui, int x, int y, int w, int h, SDL_Color color) {
-    if (!ui)
+    if (!ui) {
         return;
+    }
 
     SDL_SetRenderDrawColor(ui->renderer, color.r, color.g, color.b, color.a);
     SDL_FRect rect = {(float)x, (float)y, (float)w, (float)h};
     SDL_RenderRect(ui->renderer, &rect);
+}
+
+/**
+ * Handle clicks on RGBA button controls
+ * Returns true if a button was clicked and handled
+ */
+bool ui_handle_rgba_button_click(UIState* ui, Palette* palette, int x, int y) {
+    if (!ui || !palette) {
+        return false;
+    }
+
+    PaletteColor current = palette_get_color(palette, ui->selected_swatch);
+    bool clicked = false;
+
+    int control_y = UI_PANEL_Y + 20;
+    int control_x = UI_PANEL_X + 10;
+
+// Helper macro to check if click is within button bounds
+#define IS_BUTTON_CLICKED(mx, my, bx, by, bw, bh) \
+    ((mx) >= (bx) && (mx) <= (bx) + (bw) && (my) >= (by) && (my) <= (by) + (bh))
+
+    // Red controls: "Red: (-10) (-1) [value] (+1) (+10) (0)"
+    if (y >= control_y && y <= control_y + BUTTON_HEIGHT) {
+        if (IS_BUTTON_CLICKED(x, y, control_x + 50, control_y, BUTTON_WIDTH, BUTTON_HEIGHT)) {
+            // -10 button
+            int new_r = current.r >= 10 ? current.r - 10 : 0;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(new_r, current.g, current.b, current.a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 90, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            // -1 button
+            int new_r = current.r > 0 ? current.r - 1 : 0;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(new_r, current.g, current.b, current.a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 180, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            // +1 button
+            int new_r = current.r < 255 ? current.r + 1 : 255;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(new_r, current.g, current.b, current.a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 220, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            // +10 button
+            int new_r = current.r <= 245 ? current.r + 10 : 255;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(new_r, current.g, current.b, current.a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 260, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            // Reset to 0 button
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(0, current.g, current.b, current.a));
+            clicked = true;
+        }
+    }
+
+    // Green controls
+    control_y += 35;
+    if (y >= control_y && y <= control_y + BUTTON_HEIGHT) {
+        if (IS_BUTTON_CLICKED(x, y, control_x + 50, control_y, BUTTON_WIDTH, BUTTON_HEIGHT)) {
+            int new_g = current.g >= 10 ? current.g - 10 : 0;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, new_g, current.b, current.a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 90, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            int new_g = current.g > 0 ? current.g - 1 : 0;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, new_g, current.b, current.a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 180, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            int new_g = current.g < 255 ? current.g + 1 : 255;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, new_g, current.b, current.a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 220, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            int new_g = current.g <= 245 ? current.g + 10 : 255;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, new_g, current.b, current.a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 260, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, 0, current.b, current.a));
+            clicked = true;
+        }
+    }
+
+    // Blue controls
+    control_y += 35;
+    if (y >= control_y && y <= control_y + BUTTON_HEIGHT) {
+        if (IS_BUTTON_CLICKED(x, y, control_x + 50, control_y, BUTTON_WIDTH, BUTTON_HEIGHT)) {
+            int new_b = current.b >= 10 ? current.b - 10 : 0;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, current.g, new_b, current.a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 90, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            int new_b = current.b > 0 ? current.b - 1 : 0;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, current.g, new_b, current.a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 180, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            int new_b = current.b < 255 ? current.b + 1 : 255;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, current.g, new_b, current.a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 220, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            int new_b = current.b <= 245 ? current.b + 10 : 255;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, current.g, new_b, current.a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 260, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, current.g, 0, current.a));
+            clicked = true;
+        }
+    }
+
+    // Alpha controls
+    control_y += 35;
+    if (y >= control_y && y <= control_y + BUTTON_HEIGHT) {
+        if (IS_BUTTON_CLICKED(x, y, control_x + 50, control_y, BUTTON_WIDTH, BUTTON_HEIGHT)) {
+            int new_a = current.a >= 10 ? current.a - 10 : 0;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, current.g, current.b, new_a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 90, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            int new_a = current.a > 0 ? current.a - 1 : 0;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, current.g, current.b, new_a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 180, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            int new_a = current.a < 255 ? current.a + 1 : 255;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, current.g, current.b, new_a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 220, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            int new_a = current.a <= 245 ? current.a + 10 : 255;
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, current.g, current.b, new_a));
+            clicked = true;
+        } else if (IS_BUTTON_CLICKED(x, y, control_x + 260, control_y, BUTTON_WIDTH,
+                                     BUTTON_HEIGHT)) {
+            // Reset to 255 button (full alpha)
+            palette_set_color(palette, ui->selected_swatch,
+                              palette_make_color(current.r, current.g, current.b, 255));
+            clicked = true;
+        }
+    }
+
+#undef IS_BUTTON_CLICKED
+    return clicked;
+}
+
+/**
+ * Render RGBA control buttons in the format: "Red: (-10) (-1) [value] (+1) (+10) (0)"
+ */
+void ui_render_rgba_controls(UIState* ui, const Palette* palette) {
+    if (!ui || !palette)
+        return;
+
+    PaletteColor current = palette_get_color(palette, ui->selected_swatch);
+    SDL_Color white = {255, 255, 255, 255};
+    SDL_Color button_bg = {64, 64, 64, 255};
+    SDL_Color value_bg = {48, 48, 48, 255};
+
+    int control_y = UI_PANEL_Y + 20;
+    int control_x = UI_PANEL_X + 10;
+
+    // Red controls
+    ui_render_text(ui, "Red:", control_x, control_y + 5, white);
+    ui_render_rect(ui, control_x + 50, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "-10", control_x + 55, control_y + 5, white);
+    ui_render_rect(ui, control_x + 90, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "-1", control_x + 98, control_y + 5, white);
+    ui_render_rect(ui, control_x + 130, control_y, VALUE_DISPLAY_WIDTH, BUTTON_HEIGHT, value_bg);
+    char r_str[4];
+    snprintf(r_str, sizeof(r_str), "%d", current.r);
+    ui_render_text(ui, r_str, control_x + 140, control_y + 5, white);
+    ui_render_rect(ui, control_x + 185, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "+1", control_x + 193, control_y + 5, white);
+    ui_render_rect(ui, control_x + 225, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "+10", control_x + 230, control_y + 5, white);
+    ui_render_rect(ui, control_x + 265, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "0", control_x + 275, control_y + 5, white);
+
+    // Green controls
+    control_y += UI_PANEL_ROW_H;
+    ui_render_text(ui, "Green:", control_x, control_y + 5, white);
+    ui_render_rect(ui, control_x + 50, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "-10", control_x + 55, control_y + 5, white);
+    ui_render_rect(ui, control_x + 90, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "-1", control_x + 98, control_y + 5, white);
+    ui_render_rect(ui, control_x + 130, control_y, VALUE_DISPLAY_WIDTH, BUTTON_HEIGHT, value_bg);
+    char g_str[4];
+    snprintf(g_str, sizeof(g_str), "%d", current.g);
+    ui_render_text(ui, g_str, control_x + 140, control_y + 5, white);
+    ui_render_rect(ui, control_x + 185, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "+1", control_x + 193, control_y + 5, white);
+    ui_render_rect(ui, control_x + 225, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "+10", control_x + 230, control_y + 5, white);
+    ui_render_rect(ui, control_x + 265, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "0", control_x + 275, control_y + 5, white);
+
+    // Blue controls
+    control_y += UI_PANEL_ROW_H;
+    ui_render_text(ui, "Blue:", control_x, control_y + 5, white);
+    ui_render_rect(ui, control_x + 50, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "-10", control_x + 55, control_y + 5, white);
+    ui_render_rect(ui, control_x + 90, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "-1", control_x + 98, control_y + 5, white);
+    ui_render_rect(ui, control_x + 130, control_y, VALUE_DISPLAY_WIDTH, BUTTON_HEIGHT, value_bg);
+    char b_str[4];
+    snprintf(b_str, sizeof(b_str), "%d", current.b);
+    ui_render_text(ui, b_str, control_x + 140, control_y + 5, white);
+    ui_render_rect(ui, control_x + 185, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "+1", control_x + 193, control_y + 5, white);
+    ui_render_rect(ui, control_x + 225, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "+10", control_x + 230, control_y + 5, white);
+    ui_render_rect(ui, control_x + 265, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "0", control_x + 275, control_y + 5, white);
+
+    // Alpha controls
+    control_y += UI_PANEL_ROW_H;
+    ui_render_text(ui, "Alpha:", control_x, control_y + 5, white);
+    ui_render_rect(ui, control_x + 50, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "-10", control_x + 55, control_y + 5, white);
+    ui_render_rect(ui, control_x + 90, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "-1", control_x + 98, control_y + 5, white);
+    ui_render_rect(ui, control_x + 130, control_y, VALUE_DISPLAY_WIDTH, BUTTON_HEIGHT, value_bg);
+    char a_str[4];
+    snprintf(a_str, sizeof(a_str), "%d", current.a);
+    ui_render_text(ui, a_str, control_x + 140, control_y + 5, white);
+    ui_render_rect(ui, control_x + 185, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "+1", control_x + 193, control_y + 5, white);
+    ui_render_rect(ui, control_x + 225, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "+10", control_x + 230, control_y + 5, white);
+    ui_render_rect(ui, control_x + 265, control_y, BUTTON_WIDTH, BUTTON_HEIGHT, button_bg);
+    ui_render_text(ui, "255", control_x + 270, control_y + 5, white);
 }

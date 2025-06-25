@@ -42,6 +42,42 @@ void palette_init(Palette* palette) {
 }
 
 /**
+ * Reset palette to default colors
+ * Resets to the same default colors as palette_init but marks as modified
+ */
+void palette_reset_to_default(Palette* palette) {
+    if (!palette)
+        return;
+
+    // Use the same default colors as palette_init
+    const PaletteColor default_colors[16] = {
+        {0, 0, 0, 255},        // 0: Black
+        {128, 0, 0, 255},      // 1: Dark Red
+        {0, 128, 0, 255},      // 2: Dark Green
+        {128, 128, 0, 255},    // 3: Dark Yellow/Brown
+        {0, 0, 128, 255},      // 4: Dark Blue
+        {128, 0, 128, 255},    // 5: Dark Magenta
+        {0, 128, 128, 255},    // 6: Dark Cyan
+        {192, 192, 192, 255},  // 7: Light Gray
+        {128, 128, 128, 255},  // 8: Dark Gray
+        {255, 0, 0, 255},      // 9: Bright Red
+        {0, 255, 0, 255},      // 10: Bright Green
+        {255, 255, 0, 255},    // 11: Bright Yellow
+        {0, 0, 255, 255},      // 12: Bright Blue
+        {255, 0, 255, 255},    // 13: Bright Magenta
+        {0, 255, 255, 255},    // 14: Bright Cyan
+        {255, 255, 255, 255}   // 15: White
+    };
+
+    // Copy default colors to palette
+    for (int i = 0; i < 16; i++) {
+        palette->colors[i] = default_colors[i];
+    }
+
+    palette->modified = true;  // Mark as modified since this is a user action
+}
+
+/**
  * Load palette from binary file
  * Expected format: 64 bytes (16 colors × 4 bytes RGBA each)
  */

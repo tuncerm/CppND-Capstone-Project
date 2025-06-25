@@ -34,6 +34,14 @@ typedef struct {
 void palette_init(Palette* palette);
 
 /**
+ * Reset palette to default colors
+ * Resets palette to the default 16-color set and marks as modified
+ *
+ * @param palette Pointer to palette structure to reset
+ */
+void palette_reset_to_default(Palette* palette);
+
+/**
  * Load palette from file
  * File format: 64 bytes (16 colors * 4 bytes RGBA)
  *
