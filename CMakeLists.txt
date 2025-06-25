@@ -44,6 +44,13 @@ endif()
 # Set module path for custom Find modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
+# Add shared components library
+add_subdirectory(shared)
+
+# Add palette-maker and tile-maker subdirectories
+add_subdirectory(palette-maker)
+add_subdirectory(tile-maker)
+
 # Find SDL3 with better cross-platform support
 find_package(SDL3 REQUIRED)
 

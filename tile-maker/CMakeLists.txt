@@ -91,6 +91,7 @@ endif()
 
 # Include directories
 include_directories(${SDL3_INCLUDE_DIRS})
+include_directories(../shared)
 
 # Source files
 set(SOURCES
@@ -124,6 +125,7 @@ if(PLATFORM_WINDOWS)
 
     # Windows libraries
     target_link_libraries(TileMaker
+        shared_components
         ${SDL3_LIBRARIES}
         user32
         gdi32
@@ -155,6 +157,7 @@ elseif(PLATFORM_MACOS)
     find_library(METAL_LIBRARY Metal)
 
     target_link_libraries(TileMaker
+        shared_components
         ${SDL3_LIBRARIES}
         ${COCOA_LIBRARY}
         ${IOKIT_LIBRARY}
@@ -175,6 +178,7 @@ elseif(PLATFORM_LINUX)
     pkg_check_modules(PULSE libpulse)
 
     target_link_libraries(TileMaker
+        shared_components
         ${SDL3_LIBRARIES}
         Threads::Threads
         ${CMAKE_DL_LIBS}
