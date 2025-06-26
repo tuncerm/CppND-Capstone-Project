@@ -225,19 +225,19 @@ if exist "bin\PaletteMaker.exe" (
 ) else if exist "bin\PaletteMaker" (
     set "EXECUTABLE=bin\PaletteMaker"
 ) else (
-    set "EXECUTABLE=<not found>"
+    set "EXECUTABLE=not_found"
 )
 
-echo   Executable: %EXECUTABLE%
+echo   Executable: !EXECUTABLE!
 
-if not "%EXECUTABLE%"=="<not found>" (
+if not "!EXECUTABLE!"=="not_found" (
     echo.
     echo %SUCCESS% To run Palette Maker:
     echo   cd %BUILD_DIR%
-    echo   %EXECUTABLE%
+    echo   !EXECUTABLE!
     echo.
     echo %INFO% Or with a palette file:
-    echo   %EXECUTABLE% my_palette.dat
+    echo   !EXECUTABLE! my_palette.dat
 ) else (
     echo %WARNING% Executable not found at expected location
     echo %INFO% Check the bin\ directory for PaletteMaker.exe

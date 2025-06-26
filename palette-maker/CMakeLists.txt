@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 # Project configuration
-project(PaletteMaker VERSION 1.0.0 LANGUAGES C)
+project(PaletteMaker VERSION 1.0.0 LANGUAGES C CXX)
 
 # Set C standard
 set(CMAKE_C_STANDARD 11)
