@@ -96,8 +96,6 @@ if(WIN32 AND SDL3_FOUND)
 endif()
 
 # Include directories
-include_directories(${SDL3_INCLUDE_DIRS})
-include_directories(../shared)
 
 # Source files
 set(SOURCES
@@ -111,6 +109,11 @@ set(SOURCES
 
 # Create executable
 add_executable(TileMaker ${SOURCES})
+
+target_include_directories(TileMaker PUBLIC
+    ${SDL3_INCLUDE_DIRS}
+    "${CMAKE_CURRENT_SOURCE_DIR}/../shared"
+)
 
 # Set target properties
 set_target_properties(TileMaker PROPERTIES

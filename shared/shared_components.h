@@ -23,6 +23,10 @@
 #include <SDL3/SDL.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Text rendering system
 #include "text_renderer/font_data.h"
 #include "text_renderer/text_renderer.h"
@@ -74,5 +78,9 @@ void shared_components_cleanup(void);
  * @return true if initialized and ready to use
  */
 bool shared_components_is_initialized(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // SHARED_COMPONENTS_H

@@ -54,9 +54,7 @@ add_subdirectory(tile-maker)
 # Find SDL3 with better cross-platform support
 find_package(SDL3 REQUIRED)
 
-# Include directories
-include_directories(${SDL3_INCLUDE_DIRS})
-include_directories(src)
+# Target-specific include directories
 
 # Source files
 set(SOURCES
@@ -73,6 +71,12 @@ set(SOURCES
 
 # Create executable
 add_executable(PlayGame ${SOURCES})
+
+target_include_directories(PlayGame PUBLIC
+    src
+    "${CMAKE_SOURCE_DIR}/shared"
+    ${SDL3_INCLUDE_DIRS}
+)
 
 # Set target properties
 set_target_properties(PlayGame PROPERTIES
@@ -93,6 +97,7 @@ if(PLATFORM_WINDOWS)
 
     # Windows libraries
     target_link_libraries(PlayGame
+        shared_components
         ${SDL3_LIBRARIES}
         user32
         gdi32
@@ -124,6 +129,7 @@ elseif(PLATFORM_MACOS)
     find_library(METAL_LIBRARY Metal)
 
     target_link_libraries(PlayGame
+        shared_components
         ${SDL3_LIBRARIES}
         ${COCOA_LIBRARY}
         ${IOKIT_LIBRARY}
@@ -144,6 +150,7 @@ elseif(PLATFORM_LINUX)
     pkg_check_modules(PULSE libpulse)
 
     target_link_libraries(PlayGame
+        shared_components
         ${SDL3_LIBRARIES}
         Threads::Threads
         ${CMAKE_DL_LIBS}

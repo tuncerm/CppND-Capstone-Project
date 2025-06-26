@@ -4,6 +4,10 @@
 #include <SDL3/SDL.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * SDL Framework for Shared Component Library
  *
@@ -187,5 +191,9 @@ bool sdl_is_subsystem_initialized(Uint32 flags);
  * @param patch Output: patch version
  */
 void sdl_get_version(int* major, int* minor, int* patch);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // SDL_CONTEXT_H

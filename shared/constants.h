@@ -1,0 +1,32 @@
+#ifndef SHARED_CONSTANTS_H
+#define SHARED_CONSTANTS_H
+
+// Buffer sizes
+#define FILE_BUFFER_SIZE 4096
+#define VERSION_STRING_SIZE 32
+#define MAX_TEXT_LEN 32
+#define MAX_DIGITS 16
+#define INFO_BUFFER_SIZE 64
+#define PERF_INFO_BUFFER_SIZE 128
+#define STRESS_TEXT_BUFFER_SIZE 32
+
+// File validation
+#define MIN_ASCII 32
+#define PALETTE_FILE_SIZE 64
+#define PALETTE_RGB_SIZE 48
+
+// UI
+#define CHAR_WIDTH 6
+#define MAX_CHARS_PER_LINE 20
+
+// Text rendering
+#define DEFAULT_TEXT_COLOR_R 255
+#define DEFAULT_TEXT_COLOR_G 255
+#define DEFAULT_TEXT_COLOR_B 255
+#define DEFAULT_TEXT_COLOR_A 255
+
+// Performance
+#define TARGET_FPS 60
+#define FRAME_DELAY_MS 16
+
+#endif  // SHARED_CONSTANTS_H

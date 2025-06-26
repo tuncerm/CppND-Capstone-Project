@@ -4,6 +4,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * File Utilities for Shared Component Library
  *
@@ -156,5 +160,9 @@ bool file_sanitize_filename(const char* filename, char* output, size_t output_si
  * @return true if successful, false on error
  */
 bool file_get_temp_path(const char* prefix, char* output, size_t output_size);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // FILE_UTILS_H

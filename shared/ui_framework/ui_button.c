@@ -1,6 +1,7 @@
 #include "ui_button.h"
 #include <stdlib.h>
 #include <string.h>
+#include "../constants.h"
 #include "../text_renderer/text_renderer.h"
 
 /**
@@ -169,8 +170,8 @@ void ui_button_render(UIButton* button, SDL_Renderer* renderer, TextRenderer* te
                                    button->text_color.b, button->text_color.a);
 
             // Draw simple rectangles to represent text characters
-            int char_width = 6;
-            for (int i = 0; i < (int)strlen(button->text) && i < 20; i++) {
+            int char_width = CHAR_WIDTH;
+            for (int i = 0; i < (int)strlen(button->text) && i < MAX_CHARS_PER_LINE; i++) {
                 SDL_FRect char_rect = {(float)(text_x + i * char_width), (float)(text_y + 2), 4.0f,
                                        8.0f};
                 SDL_RenderFillRect(renderer, &char_rect);

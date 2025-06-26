@@ -1,0 +1,8 @@
+#ifndef PALETTE_MAKER_CONSTANTS_H
+#define PALETTE_MAKER_CONSTANTS_H
+
+// Performance
+#define TARGET_FPS 60
+#define FRAME_DELAY_MS 16
+
+#endif  // PALETTE_MAKER_CONSTANTS_H

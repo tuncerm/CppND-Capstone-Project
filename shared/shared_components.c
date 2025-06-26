@@ -1,5 +1,6 @@
 #include "shared_components.h"
 #include <stdio.h>
+#include "constants.h"
 
 static bool g_shared_components_initialized = false;
 
@@ -7,7 +8,7 @@ static bool g_shared_components_initialized = false;
  * Get library version string
  */
 const char* shared_components_get_version(void) {
-    static char version_string[32];
+    static char version_string[VERSION_STRING_SIZE];
     snprintf(version_string, sizeof(version_string), "%d.%d.%d", SHARED_COMPONENTS_VERSION_MAJOR,
              SHARED_COMPONENTS_VERSION_MINOR, SHARED_COMPONENTS_VERSION_PATCH);
     return version_string;

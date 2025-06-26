@@ -1,6 +1,7 @@
 #include "text_renderer.h"
 #include <stdio.h>
 #include <string.h>
+#include "../constants.h"
 #include "font_data.h"
 
 /**
@@ -30,7 +31,8 @@ bool text_renderer_init(TextRenderer* tr, SDL_Renderer* renderer) {
 
     tr->renderer = renderer;
     tr->initialized = true;
-    tr->default_color = (SDL_Color){255, 255, 255, 255};  // White default
+    tr->default_color = (SDL_Color){DEFAULT_TEXT_COLOR_R, DEFAULT_TEXT_COLOR_G,
+                                    DEFAULT_TEXT_COLOR_B, DEFAULT_TEXT_COLOR_A};  // White default
 
     // Validate font data in debug builds
     font_validate_data();
@@ -71,8 +73,8 @@ void text_render_string(TextRenderer* tr, const char* text, int x, int y, SDL_Co
     SDL_SetRenderDrawColor(tr->renderer, color.r, color.g, color.b, color.a);
 
     int len = (int)strlen(text);
-    if (len > 32)
-        len = 32;  // Limit to prevent overflow
+    if (len > MAX_TEXT_LEN)
+        len = MAX_TEXT_LEN;  // Limit to prevent overflow
 
     for (int i = 0; i < len; i++) {
         int char_index = font_get_char_index(text[i]);
@@ -217,7 +219,7 @@ void text_render_7segment_string(TextRenderer* tr, const char* numbers, int x, i
     int len = (int)strlen(numbers);
     int digit_width = scale * 6;  // Each 7-segment digit is 6 units wide (5 + 1 spacing)
 
-    for (int i = 0; i < len && i < 16; i++) {  // Limit to 16 digits
+    for (int i = 0; i < len && i < MAX_DIGITS; i++) {  // Limit to 16 digits
         char c = numbers[i];
 
         if (c == '.') {
@@ -246,8 +248,8 @@ void text_get_7segment_dimensions(const char* text, int scale, int* width, int* 
     }
 
     int len = (int)strlen(text);
-    if (len > 16)
-        len = 16;  // Limit
+    if (len > MAX_DIGITS)
+        len = MAX_DIGITS;  // Limit
 
     *width = len * scale * 6;  // Each digit is 6 units wide
     *height = scale * 7;       // Each digit is 7 units tall

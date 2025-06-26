@@ -2,6 +2,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include "../shared/config/config_manager.h"
+#include "../shared/error_handler/error_handler.h"
 #include "palette_io.h"
 #include "pixel_editor.h"
 #include "tile_sheet.h"
@@ -18,6 +20,7 @@ typedef struct {
     TileSheet tile_sheet;
     PixelEditor pixel_editor;
     UIState ui;
+    ConfigManager config;
 
     bool running;
     bool keys[SDL_SCANCODE_COUNT];
@@ -34,6 +37,55 @@ bool app_init(AppState* app) {
     if (!app)
         return false;
 
+    // Initialize configuration system
+    if (!config_manager_init(&app->config, "Tile Maker")) {
+        printf("Error: Failed to initialize configuration manager\n");
+        return false;
+    }
+
+    // Register configuration entries
+    config_register_entry(&app->config, "display", "window_width", CONFIG_TYPE_INT,
+                          config_make_int(WINDOW_WIDTH), false);
+    config_register_entry(&app->config, "display", "window_height", CONFIG_TYPE_INT,
+                          config_make_int(WINDOW_HEIGHT), false);
+    config_register_entry(&app->config, "display", "window_title", CONFIG_TYPE_STRING,
+                          config_make_string("Tile Maker v1.0 - SDL3 Edition"), false);
+    config_register_entry(&app->config, "ui", "palette_bar_height", CONFIG_TYPE_INT,
+                          config_make_int(PALETTE_BAR_HEIGHT), false);
+    config_register_entry(&app->config, "ui", "button_width", CONFIG_TYPE_INT,
+                          config_make_int(BUTTON_WIDTH), false);
+    config_register_entry(&app->config, "ui", "button_height", CONFIG_TYPE_INT,
+                          config_make_int(BUTTON_HEIGHT), false);
+    config_register_entry(&app->config, "ui", "palette_swatch_size", CONFIG_TYPE_INT,
+                          config_make_int(PALETTE_SWATCH_SIZE), false);
+    config_register_entry(&app->config, "performance", "target_fps", CONFIG_TYPE_INT,
+                          config_make_int(TARGET_FPS), false);
+    config_register_entry(&app->config, "performance", "frame_delay_ms", CONFIG_TYPE_INT,
+                          config_make_int(FRAME_DELAY_MS), false);
+    config_register_entry(&app->config, "files", "default_tiles_file", CONFIG_TYPE_STRING,
+                          config_make_string("tiles.dat"), false);
+    config_register_entry(&app->config, "files", "default_palette_file", CONFIG_TYPE_STRING,
+                          config_make_string("palette.dat"), false);
+
+    // Load configuration file
+    if (!config_manager_load(&app->config, "config/tile_maker_config.json")) {
+        printf("Warning: Failed to load configuration file, using defaults\n");
+        if (ErrorHandler_HasError()) {
+            printf("Error: %s\n", ErrorHandler_Get());
+            ErrorHandler_Clear();
+        }
+    }
+
+    // Get configuration values
+    int window_width = config_get_int(&app->config, "display", "window_width", WINDOW_WIDTH);
+    int window_height = config_get_int(&app->config, "display", "window_height", WINDOW_HEIGHT);
+    const char* window_title = config_get_string(&app->config, "display", "window_title",
+                                                 "Tile Maker v1.0 - SDL3 Edition");
+
+    printf("Starting Tile Maker with configuration:\n");
+    printf("  Window: %dx%d\n", window_width, window_height);
+    printf("  Title: %s\n", window_title);
+
     // Initialize SDL
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         printf("Error: Could not initialize SDL3: %s\n", SDL_GetError());
@@ -41,8 +93,7 @@ bool app_init(AppState* app) {
     }
 
     // Create window
-    app->window = SDL_CreateWindow("Tile Maker v1.0 - SDL3 Edition", WINDOW_WIDTH, WINDOW_HEIGHT,
-                                   SDL_WINDOW_RESIZABLE);
+    app->window = SDL_CreateWindow(window_title, window_width, window_height, SDL_WINDOW_RESIZABLE);
     if (!app->window) {
         printf("Error: Could not create window: %s\n", SDL_GetError());
         SDL_Quit();
@@ -148,14 +199,14 @@ void app_handle_events(AppState* app) {
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                if (event.button.button < 8) {
+                if (event.button.button < MOUSE_BUTTON_LIMIT) {
                     app->mouse_buttons[event.button.button] = true;
                     app->mouse_clicked[event.button.button] = true;
                 }
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_UP:
-                if (event.button.button < 8) {
+                if (event.button.button < MOUSE_BUTTON_LIMIT) {
                     app->mouse_buttons[event.button.button] = false;
                 }
                 break;
@@ -269,9 +320,9 @@ void app_update(AppState* app) {
     int ui_action = ui_handle_mouse(&app->ui, app->mouse_x, app->mouse_y,
                                     app->mouse_clicked[SDL_BUTTON_LEFT], SDL_BUTTON_LEFT);
 
-    if (ui_action >= 10) {
+    if (ui_action >= PALETTE_SELECTION_OFFSET) {
         // Palette selection
-        int palette_index = ui_action - 10;
+        int palette_index = ui_action - PALETTE_SELECTION_OFFSET;
         pixel_editor_set_color(&app->pixel_editor, palette_index);
     } else if (ui_action == 1) {
         // Save
@@ -299,9 +350,9 @@ void app_update(AppState* app) {
     }
 
     // Handle tile sheet input (10, 10 is the tile sheet position)
-    int clicked_tile = tile_sheet_handle_input(&app->tile_sheet, 10, 50, app->mouse_x, app->mouse_y,
-                                               app->mouse_clicked[SDL_BUTTON_LEFT],
-                                               ui_check_double_click(&app->ui, -1));
+    int clicked_tile = tile_sheet_handle_input(
+        &app->tile_sheet, TILE_SHEET_POS_X, TILE_SHEET_POS_Y, app->mouse_x, app->mouse_y,
+        app->mouse_clicked[SDL_BUTTON_LEFT], ui_check_double_click(&app->ui, -1));
 
     if (clicked_tile >= 0) {
         bool is_double_click = ui_check_double_click(&app->ui, clicked_tile);
@@ -314,7 +365,7 @@ void app_update(AppState* app) {
 
     // Handle pixel editor input (280, 50 is the pixel editor position)
     bool pixel_modified = pixel_editor_handle_input(
-        &app->pixel_editor, 280, 50, app->mouse_x, app->mouse_y,
+        &app->pixel_editor, PIXEL_EDITOR_POS_X, PIXEL_EDITOR_POS_Y, app->mouse_x, app->mouse_y,
         app->mouse_buttons[SDL_BUTTON_LEFT], app->mouse_buttons[SDL_BUTTON_RIGHT],
         app->mouse_buttons[SDL_BUTTON_LEFT] || app->mouse_buttons[SDL_BUTTON_RIGHT]);
 
@@ -333,14 +384,15 @@ void app_render(AppState* app) {
         return;
 
     // Clear screen
-    SDL_SetRenderDrawColor(app->renderer, 32, 32, 32, 255);
+    SDL_SetRenderDrawColor(app->renderer, CLEAR_COLOR_R, CLEAR_COLOR_G, CLEAR_COLOR_B,
+                           CLEAR_COLOR_A);
     SDL_RenderClear(app->renderer);
 
     // Render tile sheet (left panel)
-    tile_sheet_render(&app->tile_sheet, app->renderer, 10, 50);
+    tile_sheet_render(&app->tile_sheet, app->renderer, TILE_SHEET_POS_X, TILE_SHEET_POS_Y);
 
     // Render pixel editor (center panel)
-    pixel_editor_render(&app->pixel_editor, app->renderer, 280, 50);
+    pixel_editor_render(&app->pixel_editor, app->renderer, PIXEL_EDITOR_POS_X, PIXEL_EDITOR_POS_Y);
 
     // Render UI (palette bar, buttons, status)
     ui_render(&app->ui, app->renderer);
@@ -409,7 +461,7 @@ int main(int argc, char* argv[]) {
         app_render(&app);
 
         // Small delay to prevent excessive CPU usage
-        SDL_Delay(16);  // ~60 FPS
+        SDL_Delay(FRAME_DELAY_MS);  // ~60 FPS
     }
 
     // Check for unsaved changes before exiting

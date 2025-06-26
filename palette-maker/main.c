@@ -1,6 +1,7 @@
 #include <SDL3/SDL.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include "constants.h"
 #include "palette.h"
 #include "ui.h"
 
@@ -69,7 +70,7 @@ int main(int argc, char* argv[]) {
         ui_render(&ui, &palette);
 
         // Small delay to prevent excessive CPU usage
-        SDL_Delay(16);  // ~60 FPS
+        SDL_Delay(FRAME_DELAY_MS);  // ~60 FPS
     }
 
     // Check for unsaved changes before exiting

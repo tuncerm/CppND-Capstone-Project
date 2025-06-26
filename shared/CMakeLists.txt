@@ -6,6 +6,12 @@ add_library(shared_components STATIC
     # Main library file
     shared_components.c
 
+    # Configuration system
+    config/config_manager.c
+
+    # Error handling
+    error_handler/error_handler.c
+
     # Text rendering system
     text_renderer/text_renderer.c
     text_renderer/font_data.c
@@ -27,6 +33,8 @@ add_library(shared_components STATIC
 
 # Include directories for shared components
 target_include_directories(shared_components PUBLIC
+    config
+    error_handler
     text_renderer
     ui_framework
     palette_manager
@@ -55,4 +63,12 @@ endif()
 # Include SDL3 directories
 if(SDL3_INCLUDE_DIRS)
     target_include_directories(shared_components PUBLIC ${SDL3_INCLUDE_DIRS})
+endif()
+
+# Add tests subdirectory if testing is enabled
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    include(CTest)
+    if(BUILD_TESTING)
+        add_subdirectory(tests)
+    endif()
 endif()

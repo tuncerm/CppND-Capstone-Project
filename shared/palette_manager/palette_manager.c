@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../constants.h"
 
 /**
  * Default 16-color palette
@@ -268,7 +269,7 @@ bool palette_manager_validate_file(const char* filepath) {
     fclose(file);
 
     // Palette file should be exactly 64 bytes (16 colors × 4 bytes RGBA)
-    return file_size == 64;
+    return file_size == PALETTE_FILE_SIZE;
 }
 
 /**
@@ -280,7 +281,7 @@ int palette_manager_get_raw_data(const PaletteManager* pm, uint8_t* out_data) {
     }
 
     memcpy(out_data, pm->colors, sizeof(pm->colors));
-    return sizeof(pm->colors);  // 64 bytes
+    return sizeof(pm->colors);  // PALETTE_FILE_SIZE bytes
 }
 
 /**
@@ -291,12 +292,12 @@ bool palette_manager_set_raw_data(PaletteManager* pm, const uint8_t* data, int s
         return false;
     }
 
-    if (size == 64) {
+    if (size == PALETTE_FILE_SIZE) {
         // RGBA format (16 colors × 4 bytes)
         memcpy(pm->colors, data, sizeof(pm->colors));
         palette_manager_mark_modified(pm);
         return true;
-    } else if (size == 48) {
+    } else if (size == PALETTE_RGB_SIZE) {
         // RGB format (16 colors × 3 bytes) - convert to RGBA
         const uint8_t* src = data;
         for (int i = 0; i < PALETTE_COLOR_COUNT; i++) {

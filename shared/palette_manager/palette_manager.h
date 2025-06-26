@@ -5,6 +5,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Palette Manager for Shared Component Library
  *
@@ -198,5 +202,9 @@ int palette_manager_get_raw_data(const PaletteManager* pm, uint8_t* out_data);
  * @return true if successful, false on error
  */
 bool palette_manager_set_raw_data(PaletteManager* pm, const uint8_t* data, int size);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PALETTE_MANAGER_H

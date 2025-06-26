@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "application": "Character Game",
+    "description": "Main game application configuration",
+    "version": "1.0"
+  },
+  "display": {
+    "grid_size": 32,
+    "grid_width": 32,
+    "grid_height": 20,
+    "window_title": "Character Game"
+  },
+  "performance": {
+    "target_fps": 60,
+    "ms_per_frame": 16
+  },
+  "colors": {
+    "wall_color": "#FF0000FF",
+    "floor_color": "#0000FFFF",
+    "player_color": "#000000FF",
+    "player_eye_color": "#0000FFFF",
+    "enemy_color": "#AAAA00FF",
+    "enemy_eye_color": "#0000FFFF"
+  },
+  "character": {
+    "eye_offset_x": 8,
+    "eye_offset_y": 8,
+    "eye_width": 6,
+    "eye_height": 8,
+    "eye_spacing": 10,
+    "mouth_offset_x": 8,
+    "mouth_offset_y": 24,
+    "mouth_width": 16,
+    "mouth_height": 6
+  }
+}

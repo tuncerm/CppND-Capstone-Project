@@ -5,6 +5,10 @@
 #include <stdbool.h>
 #include "font_data.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Text Renderer for Shared Component Library
  *
@@ -151,5 +155,9 @@ void text_render_char(TextRenderer* tr, char c, int x, int y, SDL_Color color);
  * @return true if initialized and ready to use
  */
 bool text_renderer_is_ready(const TextRenderer* tr);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // TEXT_RENDERER_H

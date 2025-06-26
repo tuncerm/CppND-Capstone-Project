@@ -4,15 +4,13 @@
 #include <SDL3/SDL.h>
 #include <stdbool.h>
 
+#include "../shared/config/config_manager.h"
+
+#include "constants.h"
+
 /**
- * UI layout constants
+ * UI layout constants (fallback defaults)
  */
-#define WINDOW_WIDTH 900
-#define WINDOW_HEIGHT 600
-#define PALETTE_BAR_HEIGHT 50
-#define BUTTON_WIDTH 80
-#define BUTTON_HEIGHT 30
-#define PALETTE_SWATCH_SIZE 30
 
 /**
  * UI button structure

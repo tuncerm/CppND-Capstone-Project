@@ -5,6 +5,10 @@
 #include <stdbool.h>
 #include "ui_primitives.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * UI Button System for Shared Component Library
  *
@@ -214,5 +218,9 @@ void ui_button_array_render(UIButtonArray* array, SDL_Renderer* renderer,
  * @return Index of button with matching ID, -1 if not found
  */
 int ui_button_array_find_by_id(const UIButtonArray* array, int id);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // UI_BUTTON_H

@@ -4,6 +4,10 @@
 #include <SDL3/SDL.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * UI Primitives for Shared Component Library
  *
@@ -136,5 +140,9 @@ int ui_clamp_int(int value, int min, int max);
  * @return Clamped value
  */
 float ui_clamp_float(float value, float min, float max);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // UI_PRIMITIVES_H

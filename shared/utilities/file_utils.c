@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
+#include "../constants.h"
 
 #ifdef _WIN32
 #include <io.h>
@@ -238,7 +239,7 @@ bool file_copy(const char* src_path, const char* dest_path) {
         return false;
     }
 
-    char buffer[4096];
+    char buffer[FILE_BUFFER_SIZE];
     size_t bytes_read;
     bool success = true;
 
@@ -349,7 +350,7 @@ bool file_is_valid_filename(const char* filename) {
     // Check for invalid characters
     const char* invalid_chars = "<>:\"|?*";
     for (const char* p = filename; *p; p++) {
-        if (strchr(invalid_chars, *p) || *p < 32) {
+        if (strchr(invalid_chars, *p) || *p < MIN_ASCII) {
             return false;
         }
     }
@@ -386,7 +387,7 @@ bool file_sanitize_filename(const char* filename, char* output, size_t output_si
     const char* invalid_chars = "<>:\"|?*";
     for (size_t i = 0; i <= len; i++) {
         char c = filename[i];
-        if (c < 32 || strchr(invalid_chars, c)) {
+        if (c < MIN_ASCII || strchr(invalid_chars, c)) {
             output[i] = '_';
         } else {
             output[i] = c;

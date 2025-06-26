@@ -11,6 +11,7 @@
 #include <shared_components.h>
 #include <stdio.h>
 #include <string.h>
+#include "../../constants.h"
 
 // Demo sections
 typedef enum {
@@ -82,7 +83,7 @@ void render_character_set_demo(TextDemo* demo) {
     int char_height = FONT_HEIGHT;
     int char_spacing = CHAR_SPACING;
 
-    char info[128];
+    char info[PERF_INFO_BUFFER_SIZE];
     snprintf(info, sizeof(info), "Char Size: %dx%d, Spacing: %d", char_width, char_height,
              char_spacing);
     text_render_string(&demo->text_renderer, info, 10, 250, cyan);
@@ -114,7 +115,7 @@ void render_7_segment_demo(TextDemo* demo) {
     int minutes = (current_time / 60000) % 60;
     int hours = (current_time / 3600000) % 24;
 
-    char time_str[16];
+    char time_str[MAX_DIGITS];
     snprintf(time_str, sizeof(time_str), "%02d:%02d:%02d", hours, minutes, seconds);
     text_render_7segment_string(&demo->text_renderer, time_str, 50, 80, red, 2);
 
@@ -138,7 +139,7 @@ void render_7_segment_demo(TextDemo* demo) {
     // Dimensions info
     int width, height;
     text_get_7segment_dimensions("888", 2, &width, &height);
-    char info[64];
+    char info[INFO_BUFFER_SIZE];
     snprintf(info, sizeof(info), "Scale 2 size: %dx%d pixels", width, height);
     text_render_string(&demo->text_renderer, info, 10, 500, white);
 
@@ -193,7 +194,7 @@ void render_alignment_demo(TextDemo* demo) {
 
     for (int row = 0; row < 3; row++) {
         for (int col = 0; col < 4; col++) {
-            char cell_text[16];
+            char cell_text[MAX_DIGITS];
             snprintf(cell_text, sizeof(cell_text), "R%dC%d", row + 1, col + 1);
 
             int x = 50 + col * 80;
@@ -235,7 +236,7 @@ void render_performance_demo(TextDemo* demo) {
     demo->performance_time = (float)((end_time - start_time) / frequency * 1000.0);
 
     // Display performance results
-    char perf_info[128];
+    char perf_info[PERF_INFO_BUFFER_SIZE];
     snprintf(perf_info, sizeof(perf_info), "Rendered %d strings in %.2f ms", test_iterations,
              demo->performance_time);
     text_render_string(&demo->text_renderer, perf_info, 10, 50, green);
@@ -266,7 +267,7 @@ void render_performance_demo(TextDemo* demo) {
 
     // Render many strings for visual stress test
     for (int i = 0; i < 20; i++) {
-        char stress_text[32];
+        char stress_text[STRESS_TEXT_BUFFER_SIZE];
         snprintf(stress_text, sizeof(stress_text), "Line %02d: Stress test text", i + 1);
 
         SDL_Color color = {(Uint8)(128 + i * 6), (Uint8)(255 - i * 8), (Uint8)(100 + i * 4), 255};
@@ -349,7 +350,7 @@ int main(int argc, char* argv[]) {
         update_demo(&demo);
         render_demo(&demo);
 
-        SDL_Delay(16);  // ~60 FPS
+        SDL_Delay(FRAME_DELAY_MS);  // ~60 FPS
     }
 
     cleanup_demo(&demo);

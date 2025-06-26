@@ -1,6 +1,13 @@
 #include "renderer.h"
+#include <algorithm>
 #include <iostream>
 #include <string>
+#include <vector>
+#include "../shared/config/config_manager.h"
+#include "../shared/error_handler/error_handler.h"
+#include "constants.h"
+#include "enemy.h"
+#include "player.h"
 
 Renderer::Renderer(const int grid_size, const int grid_width, const int grid_height,
                    std::shared_ptr<GameMap> map_ptr)
@@ -10,21 +17,67 @@ Renderer::Renderer(const int grid_size, const int grid_width, const int grid_hei
       _screen_height(grid_size * grid_height),
       _grid_width(grid_width),
       _grid_height(grid_height) {
+    // Initialize configuration for colors and character rendering
+    config_manager_init(&_config, "Character Game Renderer");
+
+    // Register color configuration entries
+    config_register_entry(&_config, "colors", "wall_color", CONFIG_TYPE_COLOR_RGBA,
+                          config_make_rgba(255, 0, 0, 255), false);
+    config_register_entry(&_config, "colors", "floor_color", CONFIG_TYPE_COLOR_RGBA,
+                          config_make_rgba(0, 0, 255, 255), false);
+    config_register_entry(&_config, "colors", "player_color", CONFIG_TYPE_COLOR_RGBA,
+                          config_make_rgba(0, 0, 0, 255), false);
+    config_register_entry(&_config, "colors", "player_eye_color", CONFIG_TYPE_COLOR_RGBA,
+                          config_make_rgba(0, 0, 255, 255), false);
+    config_register_entry(&_config, "colors", "enemy_color", CONFIG_TYPE_COLOR_RGBA,
+                          config_make_rgba(170, 170, 0, 255), false);
+    config_register_entry(&_config, "colors", "enemy_eye_color", CONFIG_TYPE_COLOR_RGBA,
+                          config_make_rgba(0, 0, 255, 255), false);
+
+    // Register character rendering configuration entries
+    config_register_entry(&_config, "character", "eye_offset_x", CONFIG_TYPE_INT,
+                          config_make_int(EYE_OFFSET_X), false);
+    config_register_entry(&_config, "character", "eye_offset_y", CONFIG_TYPE_INT,
+                          config_make_int(EYE_OFFSET_Y), false);
+    config_register_entry(&_config, "character", "eye_width", CONFIG_TYPE_INT,
+                          config_make_int(EYE_WIDTH), false);
+    config_register_entry(&_config, "character", "eye_height", CONFIG_TYPE_INT,
+                          config_make_int(EYE_HEIGHT), false);
+    config_register_entry(&_config, "character", "eye_spacing", CONFIG_TYPE_INT,
+                          config_make_int(EYE_SPACING), false);
+    config_register_entry(&_config, "character", "mouth_offset_x", CONFIG_TYPE_INT,
+                          config_make_int(MOUTH_OFFSET_X), false);
+    config_register_entry(&_config, "character", "mouth_offset_y", CONFIG_TYPE_INT,
+                          config_make_int(MOUTH_OFFSET_Y), false);
+    config_register_entry(&_config, "character", "mouth_width", CONFIG_TYPE_INT,
+                          config_make_int(MOUTH_WIDTH), false);
+    config_register_entry(&_config, "character", "mouth_height", CONFIG_TYPE_INT,
+                          config_make_int(MOUTH_HEIGHT), false);
+
+    // Load configuration file
+    if (!config_manager_load(&_config, "config/game_config.json")) {
+        ErrorHandler_Log();
+        ErrorHandler_Clear();
+    }
+
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        std::cerr << "SDL could not initialize.\n";
-        std::cerr << "SDL_Error: " << SDL_GetError() << "\n";
+        ErrorHandler_Set(ERR_SDL_INIT, __FILE__, __LINE__,
+                         "SDL could not initialize. SDL_Error: %s", SDL_GetError());
+        ErrorHandler_Log();
     }
 
     sdl_window = SDL_CreateWindow("Character Game", _screen_width, _screen_height, 0);
     if (!sdl_window) {
-        std::cerr << "Window could not be created.\n";
-        std::cerr << "SDL_Error: " << SDL_GetError() << "\n";
+        ErrorHandler_Set(ERR_SDL_WINDOW, __FILE__, __LINE__,
+                         "Window could not be created. SDL_Error: %s", SDL_GetError());
+        ErrorHandler_Log();
     }
 
     sdl_renderer = SDL_CreateRenderer(sdl_window, nullptr);
     if (!sdl_renderer) {
-        std::cerr << "Renderer could not be created.\n";
-        std::cerr << "SDL_Error: " << SDL_GetError() << "\n";
+        ErrorHandler_Set(ERR_SDL_RENDERER, __FILE__, __LINE__,
+                         "Renderer could not be created. SDL_Error: %s", SDL_GetError());
+        ErrorHandler_Log();
     }
 }
 
@@ -35,29 +88,52 @@ Renderer::~Renderer() {
 }
 
 void Renderer::Render(Player& player, Enemy const enemy) {
-    SDL_FRect block;
-    block.w = static_cast<float>(_grid_size);
-    block.h = static_cast<float>(_grid_size);
+    std::vector<RenderObject> render_objects;
 
+    // Add map objects to render list
     for (int row = 0; row < _map_ptr->RowCount(); ++row) {
         for (int col = 0; col < _map_ptr->ColCount(); ++col) {
+            SDL_FRect block;
+            block.w = static_cast<float>(_grid_size);
+            block.h = static_cast<float>(_grid_size);
             block.x = static_cast<float>(col * _grid_size);
             block.y = static_cast<float>(row * _grid_size);
+
             if (_map_ptr->GetElement(row, col) == 1) {
-                SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0x00, 0x00, 0xFF);
+                ConfigColorRGBA wall_color =
+                    config_get_rgba(&_config, "colors", "wall_color", {255, 0, 0, 255});
+                render_objects.push_back({block, wall_color});
             } else {
-                SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x00, 0xFF, 0xFF);
+                ConfigColorRGBA floor_color =
+                    config_get_rgba(&_config, "colors", "floor_color", {0, 0, 255, 255});
+                render_objects.push_back({block, floor_color});
             }
-            SDL_RenderFillRect(sdl_renderer, &block);
         }
     }
 
+    // Add player and enemy to render list
     if (player.IsMoving()) {
         player.Move();
     }
+    AddCharacterObjects(render_objects, ObjectType::kPlayer, player.GetDirection(), player.GetX(),
+                        player.GetY());
+    AddCharacterObjects(render_objects, ObjectType::kEnemy, enemy.GetDirection(), enemy.GetX(),
+                        enemy.GetY());
 
-    RenderObject(ObjectType::kPlayer, player.GetDirection(), player.GetX(), player.GetY());
-    RenderObject(ObjectType::kEnemy, enemy.GetDirection(), enemy.GetX(), enemy.GetY());
+    // Sort objects by color
+    std::sort(render_objects.begin(), render_objects.end(),
+              [](const RenderObject& a, const RenderObject& b) { return a.color < b.color; });
+
+    // Render sorted objects
+    ConfigColorRGBA current_color = {0, 0, 0, 0};
+    for (const auto& obj : render_objects) {
+        if (!(obj.color == current_color)) {
+            current_color = obj.color;
+            SDL_SetRenderDrawColor(sdl_renderer, current_color.r, current_color.g, current_color.b,
+                                   current_color.a);
+        }
+        SDL_RenderFillRect(sdl_renderer, &obj.rect);
+    }
 
     SDL_RenderPresent(sdl_renderer);
 }
@@ -67,53 +143,82 @@ void Renderer::UpdateWindowTitle(int score, int fps) {
     SDL_SetWindowTitle(sdl_window, title.c_str());
 }
 
-void Renderer::RenderObject(Renderer::ObjectType ot, Character::Direction d, int posX, int posY) {
+void Renderer::AddCharacterObjects(std::vector<RenderObject>& objects, Renderer::ObjectType ot,
+                                   Character::Direction d, int posX, int posY) {
     auto makeBlock = [&](float x, float y, float w, float h) -> SDL_FRect {
         return SDL_FRect{x, y, w, h};
     };
 
     if (ot == ObjectType::kPlayer || ot == ObjectType::kEnemy) {
-        if (ot == ObjectType::kPlayer)
-            SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x00, 0x00, 0xFF);
-        else
-            SDL_SetRenderDrawColor(sdl_renderer, 0xAA, 0xAA, 0x00, 0xFF);
+        // Get character colors from configuration
+        ConfigColorRGBA body_color, eye_color;
+        if (ot == ObjectType::kPlayer) {
+            body_color = config_get_rgba(&_config, "colors", "player_color", {0, 0, 0, 255});
+            eye_color = config_get_rgba(&_config, "colors", "player_eye_color", {0, 0, 255, 255});
+        } else {
+            body_color = config_get_rgba(&_config, "colors", "enemy_color", {170, 170, 0, 255});
+            eye_color = config_get_rgba(&_config, "colors", "enemy_eye_color", {0, 0, 255, 255});
+        }
 
+        // Add character body
         SDL_FRect base = makeBlock(posX, posY, _grid_size, _grid_size);
-        SDL_RenderFillRect(sdl_renderer, &base);
+        objects.push_back({base, body_color});
 
-        SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x00, 0xFF, 0xFF);
+        // Get character feature dimensions from configuration
+        const int eye_offset_x =
+            config_get_int(&_config, "character", "eye_offset_x", EYE_OFFSET_X);
+        const int eye_offset_y =
+            config_get_int(&_config, "character", "eye_offset_y", EYE_OFFSET_Y);
+        const int eye_width = config_get_int(&_config, "character", "eye_width", EYE_WIDTH);
+        const int eye_height = config_get_int(&_config, "character", "eye_height", EYE_HEIGHT);
+        const int eye_spacing = config_get_int(&_config, "character", "eye_spacing", EYE_SPACING);
+        const int mouth_offset_x =
+            config_get_int(&_config, "character", "mouth_offset_x", MOUTH_OFFSET_X);
+        const int mouth_offset_y =
+            config_get_int(&_config, "character", "mouth_offset_y", MOUTH_OFFSET_Y);
+        const int mouth_width = config_get_int(&_config, "character", "mouth_width", MOUTH_WIDTH);
+        const int mouth_height =
+            config_get_int(&_config, "character", "mouth_height", MOUTH_HEIGHT);
 
         if (d == Character::Direction::kUp) {
-            SDL_FRect eye1 = makeBlock(posX + 8, posY, 6, 8);
-            SDL_FRect eye2 = makeBlock(posX + 18, posY, 6, 8);
-            SDL_FRect mouth = makeBlock(posX + 8, posY + 24, 16, 6);
-            SDL_RenderFillRect(sdl_renderer, &eye1);
-            SDL_RenderFillRect(sdl_renderer, &eye2);
-            SDL_RenderFillRect(sdl_renderer, &mouth);
+            SDL_FRect eye1 = makeBlock(posX + eye_offset_x, posY, eye_width, eye_height);
+            SDL_FRect eye2 =
+                makeBlock(posX + eye_offset_x + eye_spacing, posY, eye_width, eye_height);
+            SDL_FRect mouth =
+                makeBlock(posX + mouth_offset_x, posY + mouth_offset_y, mouth_width, mouth_height);
+            objects.push_back({eye1, eye_color});
+            objects.push_back({eye2, eye_color});
+            objects.push_back({mouth, eye_color});
         }
         if (d == Character::Direction::kDown) {
-            SDL_FRect eye1 = makeBlock(posX + 8, posY + 24, 6, 8);
-            SDL_FRect eye2 = makeBlock(posX + 18, posY + 24, 6, 8);
-            SDL_FRect mouth = makeBlock(posX + 8, posY, 16, 6);
-            SDL_RenderFillRect(sdl_renderer, &eye1);
-            SDL_RenderFillRect(sdl_renderer, &eye2);
-            SDL_RenderFillRect(sdl_renderer, &mouth);
+            SDL_FRect eye1 =
+                makeBlock(posX + eye_offset_x, posY + mouth_offset_y, eye_width, eye_height);
+            SDL_FRect eye2 = makeBlock(posX + eye_offset_x + eye_spacing, posY + mouth_offset_y,
+                                       eye_width, eye_height);
+            SDL_FRect mouth = makeBlock(posX + mouth_offset_x, posY, mouth_width, mouth_height);
+            objects.push_back({eye1, eye_color});
+            objects.push_back({eye2, eye_color});
+            objects.push_back({mouth, eye_color});
         }
         if (d == Character::Direction::kLeft) {
-            SDL_FRect eye1 = makeBlock(posX, posY + 8, 8, 6);
-            SDL_FRect eye2 = makeBlock(posX, posY + 18, 8, 6);
-            SDL_FRect mouth = makeBlock(posX + 24, posY + 8, 6, 16);
-            SDL_RenderFillRect(sdl_renderer, &eye1);
-            SDL_RenderFillRect(sdl_renderer, &eye2);
-            SDL_RenderFillRect(sdl_renderer, &mouth);
+            SDL_FRect eye1 = makeBlock(posX, posY + eye_offset_y, eye_height, eye_width);
+            SDL_FRect eye2 =
+                makeBlock(posX, posY + eye_offset_y + eye_spacing, eye_height, eye_width);
+            SDL_FRect mouth =
+                makeBlock(posX + mouth_offset_y, posY + eye_offset_y, mouth_height, mouth_width);
+            objects.push_back({eye1, eye_color});
+            objects.push_back({eye2, eye_color});
+            objects.push_back({mouth, eye_color});
         }
         if (d == Character::Direction::kRight) {
-            SDL_FRect eye1 = makeBlock(posX + 24, posY + 8, 8, 6);
-            SDL_FRect eye2 = makeBlock(posX + 24, posY + 18, 8, 6);
-            SDL_FRect mouth = makeBlock(posX, posY + 8, 6, 16);
-            SDL_RenderFillRect(sdl_renderer, &eye1);
-            SDL_RenderFillRect(sdl_renderer, &eye2);
-            SDL_RenderFillRect(sdl_renderer, &mouth);
+            SDL_FRect eye1 =
+                makeBlock(posX + mouth_offset_y, posY + eye_offset_y, eye_height, eye_width);
+            SDL_FRect eye2 = makeBlock(posX + mouth_offset_y, posY + eye_offset_y + eye_spacing,
+                                       eye_height, eye_width);
+            SDL_FRect mouth = makeBlock(posX, posY + eye_offset_y, mouth_height, mouth_width);
+            objects.push_back({eye1, eye_color});
+            objects.push_back({eye2, eye_color});
+            objects.push_back({mouth, eye_color});
         }
     }
 }

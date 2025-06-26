@@ -4,6 +4,10 @@
 #include <SDL3/SDL.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Double-Click Detection Utility for Shared Component Library
  *
@@ -83,5 +87,9 @@ bool double_click_has_previous(const DoubleClickDetector* detector);
 #define DOUBLE_CLICK_THRESHOLD_FAST 200    // Fast double-click
 #define DOUBLE_CLICK_THRESHOLD_NORMAL 300  // Normal double-click (palette-maker default)
 #define DOUBLE_CLICK_THRESHOLD_SLOW 500    // Slow double-click (tile-maker default)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // DOUBLE_CLICK_H

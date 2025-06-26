@@ -10,6 +10,7 @@
 
 #include <shared_components.h>
 #include <stdio.h>
+#include "../../constants.h"
 
 int main(int argc, char* argv[]) {
     printf("Basic Example - Shared Components Library v%s\n", shared_components_get_version());
@@ -74,7 +75,7 @@ int main(int argc, char* argv[]) {
         int text_width, text_height;
         text_get_dimensions("Hello, World!", &text_width, &text_height);
 
-        char size_info[64];
+        char size_info[INFO_BUFFER_SIZE];
         snprintf(size_info, sizeof(size_info), "Text size: %dx%d", text_width, text_height);
         text_render_string(&text_renderer, size_info, 10, 250, white);
 
@@ -82,7 +83,7 @@ int main(int argc, char* argv[]) {
         sdl_present(&sdl_ctx);
 
         // Small delay to avoid using too much CPU
-        SDL_Delay(16);  // ~60 FPS
+        SDL_Delay(FRAME_DELAY_MS);  // ~60 FPS
     }
 
     printf("Example completed successfully!\n");

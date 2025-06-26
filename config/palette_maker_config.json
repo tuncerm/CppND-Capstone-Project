@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "application": "Palette Maker",
+    "description": "Color palette editor application configuration",
+    "version": "1.0"
+  },
+  "display": {
+    "window_width": 800,
+    "window_height": 600,
+    "window_title": "Palette Maker v1.0.0 - SDL3 Edition"
+  },
+  "ui": {
+    "swatch_size": 45,
+    "swatch_border": 2,
+    "grid_cols": 4,
+    "grid_rows": 4,
+    "grid_start_x": 20,
+    "grid_start_y": 20,
+    "ui_panel_x": 220,
+    "ui_panel_y": 20,
+    "ui_panel_width": 320,
+    "ui_panel_height": 300,
+    "ui_panel_row_height": 30,
+    "button_width": 30,
+    "button_height": 20,
+    "value_display_width": 45,
+    "value_display_height": 20,
+    "action_button_width": 80,
+    "action_button_height": 25
+  },
+  "colors": {
+    "background_color": "#F0F0F0FF",
+    "border_color": "#808080FF",
+    "text_color": "#000000FF",
+    "button_color": "#E0E0E0FF",
+    "button_hover_color": "#D0D0D0FF",
+    "selected_color": "#0080FFFF"
+  },
+  "performance": {
+    "target_fps": 60,
+    "frame_delay_ms": 16
+  },
+  "palette": {
+    "color_count": 16,
+    "default_file": "palette.dat"
+  }
+}
