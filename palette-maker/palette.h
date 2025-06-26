@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "config.h"
 
 /**
  * RGBA color structure for palette entries
@@ -30,8 +31,9 @@ typedef struct {
  * Creates a basic 16-color palette with common colors
  *
  * @param palette Pointer to palette structure to initialize
+ * @param config The application configuration
  */
-void palette_init(Palette* palette);
+void palette_init(Palette* palette, const AppConfig* config);
 
 /**
  * Reset palette to default colors

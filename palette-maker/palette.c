@@ -7,7 +7,7 @@
  * Initialize a palette with default 16-color palette
  * Creates a standard set of colors suitable for retro games
  */
-void palette_init(Palette* palette) {
+void palette_init(Palette* palette, const AppConfig* config) {
     if (!palette)
         return;
 
@@ -33,7 +33,7 @@ void palette_init(Palette* palette) {
     };
 
     // Copy default colors to palette
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < config->color_count && i < 16; i++) {
         palette->colors[i] = default_colors[i];
     }
 

@@ -1,7 +1,7 @@
 #include <SDL3/SDL.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include "constants.h"
+#include "config.h"
 #include "palette.h"
 #include "ui.h"
 
@@ -10,8 +10,14 @@
  * Initializes SDL, creates UI, and runs the main event loop
  */
 int main(int argc, char* argv[]) {
-    (void)argc;  // Suppress unused parameter warning
-    (void)argv;
+    (void)argv;  // Suppress unused parameter warning
+
+    // Load configuration
+    AppConfig config;
+    if (!load_app_config(&config, "../config/palette_maker_config.json")) {
+        fprintf(stderr, "FATAL: Could not load application configuration.\n");
+        return 1;
+    }
 
     // Initialize SDL3
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
@@ -20,7 +26,7 @@ int main(int argc, char* argv[]) {
     }
 
     printf("SDL3 initialized successfully\n");
-    printf("Palette Maker v1.0.0 - SDL3 Edition\n");
+    printf("%s\n", config.window_title);
     printf("Controls:\n");
     printf("  - Click swatch to select\n");
     printf("  - Double-click swatch to open color picker\n");
@@ -33,11 +39,11 @@ int main(int argc, char* argv[]) {
 
     // Initialize palette with default colors
     Palette palette;
-    palette_init(&palette);
+    palette_init(&palette, &config);
 
     // Initialize UI system
     UIState ui;
-    if (!ui_init(&ui)) {
+    if (!ui_init(&ui, &config)) {
         printf("Error: Failed to initialize UI system\n");
         SDL_Quit();
         return 1;
@@ -61,16 +67,16 @@ int main(int argc, char* argv[]) {
     while (running) {
         // Handle events
         while (SDL_PollEvent(&event)) {
-            running = ui_handle_event(&ui, &palette, &event);
+            running = ui_handle_event(&ui, &palette, &event, &config);
             if (!running)
                 break;
         }
 
         // Render frame
-        ui_render(&ui, &palette);
+        ui_render(&ui, &palette, &config);
 
         // Small delay to prevent excessive CPU usage
-        SDL_Delay(FRAME_DELAY_MS);  // ~60 FPS
+        SDL_Delay(config.frame_delay_ms);
     }
 
     // Check for unsaved changes before exiting

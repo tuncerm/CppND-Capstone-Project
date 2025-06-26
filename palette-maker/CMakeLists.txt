@@ -56,13 +56,13 @@ find_package(SDL3 REQUIRED)
 # Include directories
 include_directories(${SDL3_INCLUDE_DIRS})
 include_directories(.)
-include_directories(../shared)
 
 # Source files
 set(SOURCES
     main.c
     palette.c
     ui.c
+    config.c
 )
 
 # Create executable
