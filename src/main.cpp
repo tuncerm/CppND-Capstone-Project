@@ -51,10 +51,22 @@ int main() {
     std::shared_ptr<AICentral> aiCentral = std::make_shared<AICentral>();
     std::shared_ptr<GameMap> map_ptr =
         std::make_shared<GameMap>(kGridHeight, kGridWidth, kGridSize);
-    Renderer renderer(kGridSize, kGridWidth, kGridHeight, map_ptr);
+
+    // Initialize SDL context
+    SDLContext context;
+    if (!sdl_init_context_simple(&context, "Character Game", kGridWidth * kGridSize,
+                                 kGridHeight * kGridSize)) {
+        ErrorHandler_Log();
+        return 1;
+    }
+
+    Renderer renderer(kGridSize, kGridWidth, kGridHeight, map_ptr, &context);
     Controller controller;
     Game game(kGridSize, kGridWidth, kGridHeight, map_ptr, aiCentral);
     game.Run(controller, renderer, kMsPerFrame);
+
+    // Cleanup
+    sdl_cleanup_context(&context);
     std::cout << "Game has terminated successfully!\n";
     std::cout << "Score: " << game.GetScore() << "\n";
     return 0;

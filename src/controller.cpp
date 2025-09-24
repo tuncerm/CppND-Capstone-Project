@@ -40,6 +40,7 @@ void Controller::HandleInput(bool& running, Player& player) const {
 
     if (keystates[SDL_SCANCODE_P]) {
         HandlePause();
+        return;
     }
 
     if (keystates[SDL_SCANCODE_UP]) {

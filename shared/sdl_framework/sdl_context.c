@@ -24,7 +24,7 @@ bool sdl_init_context(SDLContext* ctx, const SDLContextConfig* config) {
     }
 
     // Initialize SDL
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         printf("Error: Could not initialize SDL: %s\n", SDL_GetError());
         return false;
     }
@@ -46,9 +46,10 @@ bool sdl_init_context(SDLContext* ctx, const SDLContextConfig* config) {
     }
 
     // Create renderer
+    // Create renderer
     const char* renderer_name = NULL;
     if (ctx->vsync_enabled) {
-        renderer_name = NULL;  // Let SDL choose the best renderer with VSync
+        renderer_name = "vsync";
     }
 
     ctx->renderer = SDL_CreateRenderer(ctx->window, renderer_name);

@@ -10,8 +10,9 @@
 #include "player.h"
 
 Renderer::Renderer(const int grid_size, const int grid_width, const int grid_height,
-                   std::shared_ptr<GameMap> map_ptr)
+                   std::shared_ptr<GameMap> map_ptr, SDLContext* context)
     : _map_ptr(map_ptr),
+      _context(context),
       _grid_size(grid_size),
       _screen_width(grid_size * grid_width),
       _screen_height(grid_size * grid_height),
@@ -59,33 +60,9 @@ Renderer::Renderer(const int grid_size, const int grid_width, const int grid_hei
         ErrorHandler_Log();
         ErrorHandler_Clear();
     }
-
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        ErrorHandler_Set(ERR_SDL_INIT, __FILE__, __LINE__,
-                         "SDL could not initialize. SDL_Error: %s", SDL_GetError());
-        ErrorHandler_Log();
-    }
-
-    sdl_window = SDL_CreateWindow("Character Game", _screen_width, _screen_height, 0);
-    if (!sdl_window) {
-        ErrorHandler_Set(ERR_SDL_WINDOW, __FILE__, __LINE__,
-                         "Window could not be created. SDL_Error: %s", SDL_GetError());
-        ErrorHandler_Log();
-    }
-
-    sdl_renderer = SDL_CreateRenderer(sdl_window, nullptr);
-    if (!sdl_renderer) {
-        ErrorHandler_Set(ERR_SDL_RENDERER, __FILE__, __LINE__,
-                         "Renderer could not be created. SDL_Error: %s", SDL_GetError());
-        ErrorHandler_Log();
-    }
 }
 
-Renderer::~Renderer() {
-    SDL_DestroyRenderer(sdl_renderer);
-    SDL_DestroyWindow(sdl_window);
-    SDL_Quit();
-}
+Renderer::~Renderer() {}
 
 void Renderer::Render(Player& player, Enemy const enemy) {
     std::vector<RenderObject> render_objects;
@@ -129,18 +106,18 @@ void Renderer::Render(Player& player, Enemy const enemy) {
     for (const auto& obj : render_objects) {
         if (!(obj.color == current_color)) {
             current_color = obj.color;
-            SDL_SetRenderDrawColor(sdl_renderer, current_color.r, current_color.g, current_color.b,
-                                   current_color.a);
+            SDL_SetRenderDrawColor(sdl_get_renderer(_context), current_color.r, current_color.g,
+                                   current_color.b, current_color.a);
         }
-        SDL_RenderFillRect(sdl_renderer, &obj.rect);
+        SDL_RenderFillRect(sdl_get_renderer(_context), &obj.rect);
     }
 
-    SDL_RenderPresent(sdl_renderer);
+    SDL_RenderPresent(sdl_get_renderer(_context));
 }
 
 void Renderer::UpdateWindowTitle(int score, int fps) {
     std::string title{"PlayGame Score: " + std::to_string(score) + " FPS: " + std::to_string(fps)};
-    SDL_SetWindowTitle(sdl_window, title.c_str());
+    sdl_set_window_title(_context, title.c_str());
 }
 
 void Renderer::AddCharacterObjects(std::vector<RenderObject>& objects, Renderer::ObjectType ot,

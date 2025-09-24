@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include "../shared/config/config_manager.h"
+#include "../shared/sdl_framework/sdl_context.h"
 #include "SDL3/SDL.h"
 #include "character.h"
 #include "gamemap.h"
@@ -34,7 +35,7 @@ class Renderer {
    public:
     enum class ObjectType { kPlayer, kEnemy };
     Renderer(const int grid_size, const int grid_width, const int grid_height,
-             std::shared_ptr<GameMap> map_ptr);
+             std::shared_ptr<GameMap> map_ptr, SDLContext* context);
     ~Renderer();
 
     void Render(Player& player, Enemy const enemy);
@@ -44,8 +45,7 @@ class Renderer {
     void AddCharacterObjects(std::vector<RenderObject>& objects, ObjectType ot,
                              Character::Direction d, int posX, int posY);
 
-    SDL_Window* sdl_window;
-    SDL_Renderer* sdl_renderer;
+    SDLContext* _context;
     ConfigManager _config;
 
     std::shared_ptr<GameMap> _map_ptr;
