@@ -153,28 +153,33 @@ void tile_sheet_render(TileSheet* sheet, SDL_Renderer* renderer, int x, int y) {
         }
     }
 
-    // Draw hover outline
-    if (sheet->hover_tile >= 0) {
-        SDL_SetRenderDrawColor(renderer, 100, 150, 255, 255);
-        SDL_FRect hover_rect = {x + sheet->tile_rects[sheet->hover_tile].x,
-                                y + sheet->tile_rects[sheet->hover_tile].y, TILE_DISPLAY_SIZE,
-                                TILE_DISPLAY_SIZE};
-        SDL_RenderRect(renderer, &hover_rect);
-    }
-
-    // Draw selection outline
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    // Draw selection outline (thicker, green)
+    SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);  // Green
     SDL_FRect select_rect = {x + sheet->tile_rects[sheet->selected_tile].x,
                              y + sheet->tile_rects[sheet->selected_tile].y, TILE_DISPLAY_SIZE,
                              TILE_DISPLAY_SIZE};
-    SDL_RenderRect(renderer, &select_rect);
+    for (int i = 0; i < 2; ++i) {
+        SDL_RenderRect(renderer, &select_rect);
+        select_rect.x -= 1;
+        select_rect.y -= 1;
+        select_rect.w += 2;
+        select_rect.h += 2;
+    }
 
-    // Draw thick selection border
-    select_rect.x -= 1;
-    select_rect.y -= 1;
-    select_rect.w += 2;
-    select_rect.h += 2;
-    SDL_RenderRect(renderer, &select_rect);
+    // Draw hover outline (thicker, yellow)
+    if (sheet->hover_tile >= 0 && sheet->hover_tile != sheet->selected_tile) {
+        SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);  // Yellow
+        SDL_FRect hover_rect = {x + sheet->tile_rects[sheet->hover_tile].x,
+                                y + sheet->tile_rects[sheet->hover_tile].y, TILE_DISPLAY_SIZE,
+                                TILE_DISPLAY_SIZE};
+        for (int i = 0; i < 2; ++i) {
+            SDL_RenderRect(renderer, &hover_rect);
+            hover_rect.x -= 1;
+            hover_rect.y -= 1;
+            hover_rect.w += 2;
+            hover_rect.h += 2;
+        }
+    }
 }
 
 /**
@@ -210,12 +215,11 @@ int tile_sheet_handle_input(TileSheet* sheet, int panel_x, int panel_y, int mous
     sheet->hover_tile = tile_id;
 
     // Handle clicks
-    if (clicked || double_clicked) {
+    if (clicked) {
         sheet->selected_tile = tile_id;
-        return tile_id;
     }
 
-    return -1;
+    return tile_id;
 }
 
 /**

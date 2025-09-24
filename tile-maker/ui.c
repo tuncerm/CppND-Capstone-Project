@@ -1,4 +1,5 @@
 #include "ui.h"
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include "palette_io.h"
@@ -79,6 +80,13 @@ bool ui_init(UIState* ui, SDL_Renderer* renderer) {
     // Initialize double-click tracking
     ui->last_click_time = 0;
     ui->last_clicked_tile = -1;
+
+    // Initialize quit confirmation dialog
+    ui->show_quit_dialog = false;
+    ui->quit_yes_button.rect = (SDL_FRect){WINDOW_WIDTH / 2 - 110, WINDOW_HEIGHT / 2, 100, 40};
+    strcpy(ui->quit_yes_button.text, "Yes");
+    ui->quit_no_button.rect = (SDL_FRect){WINDOW_WIDTH / 2 + 10, WINDOW_HEIGHT / 2, 100, 40};
+    strcpy(ui->quit_no_button.text, "No");
 
     printf("UI initialized\n");
     return true;
@@ -175,6 +183,20 @@ void ui_render(UIState* ui, SDL_Renderer* renderer) {
 
         render_text(renderer, "*", WINDOW_WIDTH - 25, 15, text_color);
     }
+
+    // Render quit confirmation dialog
+    if (ui->show_quit_dialog) {
+        SDL_FRect dialog_rect = {WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 - 50, 300, 120};
+        SDL_SetRenderDrawColor(renderer, 30, 30, 30, 230);
+        SDL_RenderFillRect(renderer, &dialog_rect);
+        SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
+        SDL_RenderRect(renderer, &dialog_rect);
+
+        render_text(renderer, "Unsaved changes! Quit?", dialog_rect.x + 10, dialog_rect.y + 10,
+                    (SDL_Color){255, 255, 255, 255});
+        render_button(renderer, &ui->quit_yes_button);
+        render_button(renderer, &ui->quit_no_button);
+    }
 }
 
 /**
@@ -190,6 +212,19 @@ int ui_handle_mouse(UIState* ui, int mouse_x, int mouse_y, bool clicked, int but
     ui->load_button.hovered = false;
     ui->new_button.hovered = false;
     ui->quit_button.hovered = false;
+
+    // Handle quit dialog input
+    if (ui->show_quit_dialog) {
+        if (point_in_rect(mouse_x, mouse_y, &ui->quit_yes_button.rect)) {
+            if (clicked)
+                return 5;  // Quit confirmed
+        }
+        if (point_in_rect(mouse_x, mouse_y, &ui->quit_no_button.rect)) {
+            if (clicked)
+                ui->show_quit_dialog = false;
+        }
+        return 0;  // Absorb input
+    }
 
     // Check palette swatches
     for (int i = 0; i < 16; i++) {
@@ -327,28 +362,182 @@ void render_button(SDL_Renderer* renderer, const UIButton* button) {
     render_text(renderer, button->text, button->rect.x + 5, button->rect.y + 8, text_color);
 }
 
-/**
- * Render simple text (basic implementation)
- * This is a placeholder - in a full implementation you'd want proper font rendering
- */
+/* ----------------------------------------------------------------
+ * Simple 5×7 bitmap font with extended special‑character support
+ * ----------------------------------------------------------------
+ *==============================
+ * 1. Character → glyph index
+ *==============================*/
+static inline int get_char_index(char c) {
+    if (c == ' ')
+        return 0;
+    if (c >= '0' && c <= '9')
+        return 1 + (c - '0'); /* 1‑10 */
+    if (c >= 'A' && c <= 'Z')
+        return 11 + (c - 'A'); /* 11‑36 */
+    if (c >= 'a' && c <= 'z')
+        return 11 + (c - 'a'); /* map lowercase → uppercase */
+
+    /* Ordered ASCII specials → 37‑59 */
+    switch (c) {
+        case '.':
+            return 37; /* period */
+        case ',':
+            return 38; /* comma  */
+        case ';':
+            return 39; /* semicolon */
+        case ':':
+            return 40; /* colon */
+        case '!':
+            return 41;
+        case '?':
+            return 42;
+        case '-':
+            return 43;
+        case '_':
+            return 44;
+        case '+':
+            return 45;
+        case '=':
+            return 46;
+        case '*':
+            return 47;
+        case '/':
+            return 48;
+        case '\\':
+            return 49;
+        case '<':
+            return 50;
+        case '>':
+            return 51;
+        case '(':
+            return 52;
+        case ')':
+            return 53;
+        case '&':
+            return 54;
+        case '%':
+            return 55;
+        case '\'':
+            return 56; /* apostrophe */
+        case '"':
+            return 57; /* double quote */
+        /* 58 → right‑arrow, 59 → left‑arrow (no ASCII) */
+        default:
+            return 0; /* unknown → space */
+    }
+}
+
+/* Total number of glyphs in the table below */
+#define GLYPH_COUNT 60 /* indices 0‑59 */
+
+/*==============================
+ * 2. 5×7 glyph bit‑patterns
+ *==============================*/
+/* Each glyph: 7 rows × 5 cols, MSB is left‑most pixel */
+static const uint8_t font_patterns[GLYPH_COUNT][7] = {
+    /* 0  : space */
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+
+    /* 1‑10 : '0'‑'9' */
+    {0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E}, /* 1 → '0' */
+    {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E}, /* 2 → '1' */
+    {0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F}, /* 3 → '2' */
+    {0x1F, 0x02, 0x04, 0x02, 0x01, 0x11, 0x0E}, /* 4 → '3' */
+    {0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02}, /* 5 → '4' */
+    {0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E}, /* 6 → '5' */
+    {0x06, 0x08, 0x10, 0x1E, 0x11, 0x11, 0x0E}, /* 7 → '6' */
+    {0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08}, /* 8 → '7' */
+    {0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E}, /* 9 → '8' */
+    {0x0E, 0x11, 0x11, 0x0F, 0x01, 0x02, 0x0C}, /* 10 → '9' */
+
+    /* 11‑36 : 'A'‑'Z' */
+    {0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}, /* 11 */
+    {0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E}, /* 12 */
+    {0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E}, /* 13 */
+    {0x1C, 0x12, 0x11, 0x11, 0x11, 0x12, 0x1C}, /* 14 */
+    {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F}, /* 15 */
+    {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10}, /* 16 */
+    {0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0F}, /* 17 */
+    {0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}, /* 18 */
+    {0x0E, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0E}, /* 19 */
+    {0x07, 0x02, 0x02, 0x02, 0x02, 0x12, 0x0C}, /* 20 */
+    {0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11}, /* 21 */
+    {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F}, /* 22 */
+    {0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11}, /* 23 */
+    {0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11}, /* 24 */
+    {0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E}, /* 25 */
+    {0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10}, /* 26 */
+    {0x0E, 0x11, 0x11, 0x15, 0x12, 0x0E, 0x01}, /* 27 */
+    {0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11}, /* 28 */
+    {0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E}, /* 29 */
+    {0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04}, /* 30 */
+    {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E}, /* 31 */
+    {0x11, 0x11, 0x11, 0x11, 0x0A, 0x0A, 0x04}, /* 32 */
+    {0x11, 0x11, 0x11, 0x15, 0x15, 0x1B, 0x11}, /* 33 */
+    {0x11, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x11}, /* 34 */
+    {0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04}, /* 35 */
+    {0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F}, /* 36 */
+
+    /* 37‑59 : ordered specials */
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00}, /* 37 '.' */
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x08}, /* 38 ',' */
+    {0x00, 0x00, 0x04, 0x00, 0x00, 0x04, 0x08}, /* 39 ';' */
+    {0x00, 0x00, 0x04, 0x00, 0x00, 0x04, 0x00}, /* 40 ':' */
+    {0x04, 0x04, 0x04, 0x04, 0x00, 0x04, 0x00}, /* 41 '!' */
+    {0x0E, 0x11, 0x02, 0x04, 0x00, 0x04, 0x00}, /* 42 '?' */
+    {0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00}, /* 43 '-' */
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F}, /* 44 '_' */
+    {0x00, 0x04, 0x04, 0x1F, 0x04, 0x04, 0x00}, /* 45 '+' */
+    {0x00, 0x0E, 0x00, 0x0E, 0x00, 0x0E, 0x00}, /* 46 '=' */
+    {0x04, 0x0A, 0x11, 0x1F, 0x11, 0x11, 0x11}, /* 47 '*' */
+    {0x01, 0x02, 0x04, 0x08, 0x10, 0x00, 0x00}, /* 48 '/' */
+    {0x10, 0x08, 0x04, 0x02, 0x01, 0x00, 0x00}, /* 49 '\' */
+    {0x00, 0x04, 0x08, 0x10, 0x08, 0x04, 0x00}, /* 50 '<' */
+    {0x00, 0x10, 0x08, 0x04, 0x08, 0x10, 0x00}, /* 51 '>' */
+    {0x08, 0x0C, 0x0A, 0x09, 0x0A, 0x0C, 0x08}, /* 52 '(' */
+    {0x02, 0x06, 0x0A, 0x12, 0x0A, 0x06, 0x02}, /* 53 ')' */
+    {0x0A, 0x15, 0x15, 0x0E, 0x04, 0x04, 0x04}, /* 54 '&' */
+    {0x06, 0x09, 0x06, 0x15, 0x09, 0x09, 0x16}, /* 55 '%' */
+    {0x02, 0x05, 0x02, 0x00, 0x00, 0x00, 0x00}, /* 56 '\'' */
+    {0x0A, 0x0A, 0x0A, 0x00, 0x00, 0x00, 0x00}, /* 57 '"' */
+    {0x00, 0x04, 0x02, 0x1F, 0x02, 0x04, 0x00}, /* 58 '→' */
+    {0x00, 0x02, 0x04, 0x1F, 0x04, 0x02, 0x00}, /* 59 '←' */
+};
+
+/*==============================
+ * 3. Sanity check (debug builds)
+ *==============================*/
+static inline void font_assert_init(void) {
+#if !defined(NDEBUG)
+    assert(GLYPH_COUNT == (int)(sizeof font_patterns / sizeof font_patterns[0]));
+#endif
+}
+
+/*==============================
+ * 4. Text‑render helper
+ *==============================*/
 void render_text(SDL_Renderer* renderer, const char* text, int x, int y, SDL_Color color) {
-    if (!renderer || !text)
+    if (!renderer || !text) {
         return;
+    }
 
-    // This is a very basic text rendering placeholder
-    // In a real implementation, you would use SDL_ttf or another font library
-
-    // For now, just render a simple rectangle as a placeholder for text
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
 
-    int text_width = strlen(text) * 6;  // Approximate character width
-    SDL_FRect text_rect = {x, y, text_width, 12};
-    SDL_RenderRect(renderer, &text_rect);
+    int len = (int)strlen(text);
+    for (int i = 0; i < len && i < 32; i++) {
+        int char_index = get_char_index(text[i]);
+        const uint8_t* pattern = font_patterns[char_index < 52 ? char_index : 0];
 
-    // Draw small rectangles to represent characters
-    for (int i = 0; i < (int)strlen(text) && i < 20; i++) {
-        SDL_FRect char_rect = {x + i * 6, y + 2, 4, 8};
-        SDL_RenderFillRect(renderer, &char_rect);
+        // Draw character using bitmap pattern
+        for (int row = 0; row < 7; row++) {
+            for (int col = 0; col < 5; col++) {
+                if (pattern[row] & (1 << (4 - col))) {
+                    SDL_FRect pixel = {(float)(x + i * 6 + col), (float)(y + row), 1.0f, 1.0f};
+                    SDL_RenderFillRect(renderer, &pixel);
+                }
+            }
+        }
     }
 }
 

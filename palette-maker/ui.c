@@ -1,4 +1,5 @@
 #include "ui.h"
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -355,7 +356,7 @@ void ui_render(UIState* ui, const Palette* palette, const AppConfig* config) {
 
         SDL_Color white = {255, 255, 255, 255};
         ui_render_text(ui, "Save Palette", dialog_x + 10, dialog_y + 10, white);
-        ui_render_text(ui, "Save changes?", dialog_x + 10, dialog_y + 30, white);
+        ui_render_text(ui, "Save changes to palette.dat?", dialog_x + 10, dialog_y + 30, white);
 
         int button_y = dialog_y + 50;
         int yes_button_x = dialog_x + 10;

@@ -122,11 +122,9 @@ if "!VS2022_FOUND!"=="true" if "!SDL3_MSVC_FOUND!"=="true" (
             set "CMAKE_ARGS=-DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++"
         ) else (
             echo ERROR: MinGW not found! Cannot force MinGW build.
-            pause
             exit /b 1
         )
     ) else (
-        pause
         exit /b 1
     )
 ) else if "!MINGW_FOUND!"=="true" if "!SDL3_MSVC_FOUND!"=="true" (
@@ -150,7 +148,6 @@ if "!VS2022_FOUND!"=="true" if "!SDL3_MSVC_FOUND!"=="true" (
     echo   - Install MSYS2: https://www.msys2.org/
     echo   - Install packages: pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-SDL3
     echo.
-    pause
     exit /b 1
 )
 
@@ -188,7 +185,6 @@ if %ERRORLEVEL% neq 0 (
     echo 2. Verify SDL3 installation
     echo 3. Try a different toolchain combination
     echo.
-    pause
     exit /b 1
 )
 
@@ -214,7 +210,6 @@ if %ERRORLEVEL% neq 0 (
     echo 2. Missing dependencies
     echo 3. Incompatible SDL3 headers
     echo.
-    pause
     exit /b 1
 )
 
@@ -244,4 +239,3 @@ if exist "!EXE_PATH!" (
 echo.
 echo Build strategy used: !BUILD_STRATEGY!
 echo.
-pause

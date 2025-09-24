@@ -178,7 +178,11 @@ void app_handle_events(AppState* app) {
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
             case SDL_EVENT_QUIT:
-                app->running = false;
+                if (tiles_is_modified()) {
+                    app->ui.show_quit_dialog = true;
+                } else {
+                    app->running = false;
+                }
                 break;
 
             case SDL_EVENT_KEY_DOWN:
@@ -227,7 +231,11 @@ void app_handle_keyboard(AppState* app) {
     // ESC - Quit (with save prompt if dirty)
     if (app->keys[SDL_SCANCODE_ESCAPE]) {
         app->keys[SDL_SCANCODE_ESCAPE] = false;
-        app->running = false;
+        if (tiles_is_modified()) {
+            app->ui.show_quit_dialog = true;
+        } else {
+            app->running = false;
+        }
     }
 
     // S - Save
@@ -346,21 +354,25 @@ void app_update(AppState* app) {
         ui_set_status(&app->ui, "All tiles cleared");
     } else if (ui_action == 4) {
         // Quit
+        if (tiles_is_modified()) {
+            app->ui.show_quit_dialog = true;
+        } else {
+            app->running = false;
+        }
+    } else if (ui_action == 5) {
+        // Quit confirmed from dialog
         app->running = false;
     }
 
     // Handle tile sheet input (10, 10 is the tile sheet position)
-    int clicked_tile = tile_sheet_handle_input(
+    int hovered_tile = tile_sheet_handle_input(
         &app->tile_sheet, TILE_SHEET_POS_X, TILE_SHEET_POS_Y, app->mouse_x, app->mouse_y,
         app->mouse_clicked[SDL_BUTTON_LEFT], ui_check_double_click(&app->ui, -1));
 
-    if (clicked_tile >= 0) {
-        bool is_double_click = ui_check_double_click(&app->ui, clicked_tile);
-        if (is_double_click) {
-            // Double-click opens tile in pixel editor
-            pixel_editor_set_tile(&app->pixel_editor, clicked_tile);
-            ui_set_status(&app->ui, "Editing tile in pixel editor");
-        }
+    if (hovered_tile != -1) {
+        pixel_editor_set_tile(&app->pixel_editor, hovered_tile);
+    } else {
+        pixel_editor_set_tile(&app->pixel_editor, app->tile_sheet.selected_tile);
     }
 
     // Handle pixel editor input (280, 50 is the pixel editor position)

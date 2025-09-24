@@ -48,6 +48,11 @@ typedef struct {
     // Double-click tracking
     Uint64 last_click_time;
     int last_clicked_tile;
+
+    // Quit confirmation dialog
+    bool show_quit_dialog;
+    UIButton quit_yes_button;
+    UIButton quit_no_button;
 } UIState;
 
 /**
