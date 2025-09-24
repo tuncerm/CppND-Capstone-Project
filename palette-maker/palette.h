@@ -61,7 +61,7 @@ bool palette_load(Palette* palette, const char* path);
  * @param path File path to save to
  * @return true if successful, false on error
  */
-bool palette_save(const Palette* palette, const char* path);
+bool palette_save(Palette* palette, const char* path);
 
 /**
  * Set a color in the palette

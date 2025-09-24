@@ -5,8 +5,8 @@
     "version": "1.0"
   },
   "display": {
-    "window_width": 800,
-    "window_height": 600,
+    "window_width": 568,
+    "window_height": 340,
     "window_title": "Palette Maker v1.0.0 - SDL3 Edition"
   },
   "ui": {

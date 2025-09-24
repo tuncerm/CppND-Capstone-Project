@@ -67,6 +67,7 @@
 #define ACTION_BUTTON_SPACING 10
 #define SAVE_BUTTON_X (PANEL_X + RGBA_CONTROL_MARGIN_X)
 #define RESET_BUTTON_X (SAVE_BUTTON_X + ACTION_BUTTON_WIDTH + ACTION_BUTTON_SPACING)
+#define LOAD_BUTTON_X (RESET_BUTTON_X + ACTION_BUTTON_WIDTH + ACTION_BUTTON_SPACING)
 
 // Modified Indicator
 #define MODIFIED_INDICATOR_Y_OFFSET 35
@@ -119,6 +120,15 @@ typedef struct {
     int last_click_swatch;   // Last clicked swatch for double-click
 
 } UIState;
+
+/**
+ * Get UI scale factor for mouse coordinates
+ *
+ * @param ui Pointer to UI state structure
+ * @param scale_x Output for X scale factor
+ * @param scale_y Output for Y scale factor
+ */
+void ui_get_scale_factor(UIState* ui, float* scale_x, float* scale_y);
 
 /**
  * Initialize UI system

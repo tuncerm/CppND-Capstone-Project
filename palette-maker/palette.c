@@ -115,7 +115,7 @@ bool palette_load(Palette* palette, const char* path) {
  * Save palette to binary file
  * Saves exactly 64 bytes (16 colors × 4 bytes RGBA each)
  */
-bool palette_save(const Palette* palette, const char* path) {
+bool palette_save(Palette* palette, const char* path) {
     if (!palette || !path) {
         return false;
     }
@@ -136,6 +136,7 @@ bool palette_save(const Palette* palette, const char* path) {
     }
 
     printf("Palette saved successfully to '%s'\n", path);
+    palette_mark_saved(palette);
     return true;
 }
 

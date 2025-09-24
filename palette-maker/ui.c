@@ -67,92 +67,163 @@ void ui_cleanup(UIState* ui) {
 }
 
 /**
+ * Get UI scale factor for mouse coordinates
+ */
+void ui_get_scale_factor(UIState* ui, float* scale_x, float* scale_y) {
+    if (!ui || !scale_x || !scale_y)
+        return;
+
+    int win_w, win_h;
+    SDL_GetWindowSize(ui->window, &win_w, &win_h);
+
+    int rend_w, rend_h;
+    SDL_GetCurrentRenderOutputSize(ui->renderer, &rend_w, &rend_h);
+
+    *scale_x = (float)rend_w / win_w;
+    *scale_y = (float)rend_h / win_h;
+}
+
+/**
+ * Handle mouse click events
+ */
+static void ui_handle_mouse_click(UIState* ui, Palette* palette, float mouse_x, float mouse_y,
+                                  const AppConfig* config) {
+    if (ui->show_save_dialog) {
+        int dialog_x = (config->window_width - 220) / 2;
+        int dialog_y = (config->window_height - 80) / 2;
+        int button_y = dialog_y + 50;
+        int yes_button_x = dialog_x + 10;
+        int no_button_x = dialog_x + 120;
+
+        if (mouse_x >= yes_button_x && mouse_x <= yes_button_x + 80 && mouse_y >= button_y &&
+            mouse_y <= button_y + 20) {
+            if (palette_save(palette, "palette.dat")) {
+                printf("Palette saved to palette.dat\n");
+            }
+            ui->show_save_dialog = false;
+        } else if (mouse_x >= no_button_x && mouse_x <= no_button_x + 80 && mouse_y >= button_y &&
+                   mouse_y <= button_y + 20) {
+            ui->show_save_dialog = false;
+        }
+        return;
+    }
+
+    if (ui->color_picker_open) {
+        // If a dialog is open, don't process background clicks
+        return;
+    }
+    // Check for clicks on action buttons
+    int save_button_x = config->ui_panel_x + 10;
+    int action_button_y =
+        config->ui_panel_y + config->ui_panel_height - config->action_button_height - 10;
+    int reset_button_x = save_button_x + config->action_button_width + 10;
+    int load_button_x = reset_button_x + config->action_button_width + 10;
+
+    if (mouse_x >= save_button_x && mouse_x <= save_button_x + config->action_button_width &&
+        mouse_y >= action_button_y && mouse_y <= action_button_y + config->action_button_height) {
+        ui_show_save_dialog(ui);
+        return;
+    }
+
+    if (mouse_x >= reset_button_x && mouse_x <= reset_button_x + config->action_button_width &&
+        mouse_y >= action_button_y && mouse_y <= action_button_y + config->action_button_height) {
+        ui_reset_palette(ui, palette);
+        return;
+    }
+
+    if (mouse_x >= load_button_x && mouse_x <= load_button_x + config->action_button_width &&
+        mouse_y >= action_button_y && mouse_y <= action_button_y + config->action_button_height) {
+        if (palette_load(palette, "palette.dat")) {
+            printf("Palette loaded from palette.dat\n");
+        }
+        return;
+    }
+
+    if (ui_handle_rgba_button_click(ui, palette, mouse_x, mouse_y, config)) {
+        return;
+    }
+
+    int swatch = ui_get_swatch_at_position(mouse_x, mouse_y, config);
+    if (swatch >= 0) {
+        Uint32 current_time = SDL_GetTicks();
+        if (swatch == ui->last_click_swatch &&
+            current_time - ui->last_click_time < DOUBLE_CLICK_TIME) {
+            ui->selected_swatch = swatch;
+            ui_open_color_picker(ui, palette);
+            printf("Double-click detected on swatch %d\n", swatch);
+        } else {
+            ui->selected_swatch = swatch;
+            printf("Selected swatch %d\n", swatch);
+        }
+        ui->last_click_swatch = swatch;
+        ui->last_click_time = current_time;
+    }
+}
+
+/**
  * Handle SDL events and update UI state
  */
 bool ui_handle_event(UIState* ui, Palette* palette, SDL_Event* event, const AppConfig* config) {
     if (!ui || !palette)
         return false;
-    (void)config;
-
-    // Convert all mouse coordinates to the renderer's logical space
-    if (event->type == SDL_EVENT_MOUSE_MOTION || event->type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
-        event->type == SDL_EVENT_MOUSE_BUTTON_UP) {
-        SDL_ConvertEventToRenderCoordinates(ui->renderer, event);
-    }
 
     switch (event->type) {
         case SDL_EVENT_QUIT:
             return !ui_check_unsaved_changes(ui, palette);
 
         case SDL_EVENT_KEY_DOWN:
-            switch (event->key.key) {
-                case SDLK_ESCAPE:
-                    if (ui->color_picker_open) {
-                        ui_close_color_picker(ui);
-                    } else if (ui->show_save_dialog) {
-                        ui->show_save_dialog = false;
-                    } else {
-                        return !ui_check_unsaved_changes(ui, palette);
+            if (ui->show_save_dialog) {
+                if (event->key.key == SDLK_RETURN || event->key.key == SDLK_KP_ENTER) {
+                    if (palette_save(palette, "palette.dat")) {
+                        printf("Palette saved to palette.dat\n");
                     }
-                    break;
-                case SDLK_S:
-                    if (event->key.mod & SDL_KMOD_CTRL) {
-                        // Quick save
-                        if (palette_save(palette, "palette.dat")) {
-                            printf("Palette quick-saved to palette.dat\n");
+                    ui->show_save_dialog = false;
+                } else if (event->key.key == SDLK_ESCAPE) {
+                    ui->show_save_dialog = false;
+                }
+            } else if (ui->color_picker_open) {
+                if (event->key.key == SDLK_ESCAPE) {
+                    ui_close_color_picker(ui);
+                }
+            } else {
+                switch (event->key.key) {
+                    case SDLK_S:
+                        if (event->key.mod & SDL_KMOD_CTRL) {
+                            if (palette_save(palette, "palette.dat")) {
+                                printf("Palette quick-saved to palette.dat\n");
+                            }
+                        } else {
+                            ui_show_save_dialog(ui);
                         }
-                    } else {
-                        ui_show_save_dialog(ui);
-                    }
-                    break;
-                case SDLK_L:
-                    if (event->key.mod & SDL_KMOD_CTRL) {
-                        // Quick load
-                        if (palette_load(palette, "palette.dat")) {
-                            printf("Palette quick-loaded from palette.dat\n");
+                        break;
+                    case SDLK_L:
+                        if (event->key.mod & SDL_KMOD_CTRL) {
+                            if (palette_load(palette, "palette.dat")) {
+                                printf("Palette quick-loaded from palette.dat\n");
+                            }
+                        } else {
+                            // In a real application, this would open a file dialog.
+                            // For now, we'll just load the default palette.
+                            if (palette_load(palette, "palette.dat")) {
+                                printf("Palette loaded from palette.dat\n");
+                            }
                         }
-                    }
-                    break;
-                case SDLK_R:
-                    ui_reset_palette(ui, palette);
-                    break;
-                case SDLK_RETURN:
-                case SDLK_KP_ENTER:
-                    if (ui->show_save_dialog) {
-                        if (palette_save(palette, "palette.dat")) {
-                            printf("Palette saved to palette.dat\n");
-                        }
-                        ui->show_save_dialog = false;
-                    }
-                    break;
+                        break;
+                    case SDLK_R:
+                        ui_reset_palette(ui, palette);
+                        break;
+                }
             }
             break;
 
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
             if (event->button.button == SDL_BUTTON_LEFT) {
                 ui->mouse_down = true;
-                ui->mouse_x = event->button.x;
-                ui->mouse_y = event->button.y;
-
-                if (ui_handle_rgba_button_click(ui, palette, ui->mouse_x, ui->mouse_y, config)) {
-                    break;
-                }
-
-                int swatch = ui_get_swatch_at_position(ui->mouse_x, ui->mouse_y, config);
-                if (swatch >= 0) {
-                    Uint32 current_time = SDL_GetTicks();
-                    if (swatch == ui->last_click_swatch &&
-                        current_time - ui->last_click_time < DOUBLE_CLICK_TIME) {
-                        ui->selected_swatch = swatch;
-                        ui_open_color_picker(ui, palette);
-                        printf("Double-click detected on swatch %d\n", swatch);
-                    } else {
-                        ui->selected_swatch = swatch;
-                        printf("Selected swatch %d\n", swatch);
-                    }
-                    ui->last_click_swatch = swatch;
-                    ui->last_click_time = current_time;
-                }
+                float scale_x, scale_y;
+                ui_get_scale_factor(ui, &scale_x, &scale_y);
+                ui->mouse_x = event->button.x * scale_x;
+                ui->mouse_y = event->button.y * scale_y;
+                ui_handle_mouse_click(ui, palette, ui->mouse_x, ui->mouse_y, config);
             }
             break;
 
@@ -162,10 +233,13 @@ bool ui_handle_event(UIState* ui, Palette* palette, SDL_Event* event, const AppC
             }
             break;
 
-        case SDL_EVENT_MOUSE_MOTION:
-            ui->mouse_x = event->motion.x;
-            ui->mouse_y = event->motion.y;
+        case SDL_EVENT_MOUSE_MOTION: {
+            float scale_x, scale_y;
+            ui_get_scale_factor(ui, &scale_x, &scale_y);
+            ui->mouse_x = event->motion.x * scale_x;
+            ui->mouse_y = event->motion.y * scale_y;
             break;
+        }
     }
 
     return true;
@@ -236,6 +310,11 @@ void ui_render(UIState* ui, const Palette* palette, const AppConfig* config) {
                    config->action_button_height, button_bg);
     ui_render_text(ui, "Reset (R)", reset_button_x + 5, action_button_y + 5, text_color);
 
+    int load_button_x = reset_button_x + config->action_button_width + 10;
+    ui_render_rect(ui, load_button_x, action_button_y, config->action_button_width,
+                   config->action_button_height, button_bg);
+    ui_render_text(ui, "Load (L)", load_button_x + 5, action_button_y + 5, text_color);
+
     if (palette_is_modified(palette)) {
         SDL_Color red = {255, 0, 0, 255};
         ui_render_text(ui, "* Modified", config->ui_panel_x + 10,
@@ -274,10 +353,19 @@ void ui_render(UIState* ui, const Palette* palette, const AppConfig* config) {
         int dialog_y = (config->window_height - dialog_h) / 2;
         ui_render_rect(ui, dialog_x, dialog_y, dialog_w, dialog_h, dialog_bg);
 
-        ui_render_text(ui, "Save Palette", dialog_x + 10, dialog_y + 10, text_color);
-        ui_render_text(ui, "Default: palette.dat", dialog_x + 10, dialog_y + 30, text_color);
-        ui_render_text(ui, "Press Enter to save, Esc to cancel", dialog_x + 10, dialog_y + 50,
-                       text_color);
+        SDL_Color white = {255, 255, 255, 255};
+        ui_render_text(ui, "Save Palette", dialog_x + 10, dialog_y + 10, white);
+        ui_render_text(ui, "Save changes?", dialog_x + 10, dialog_y + 30, white);
+
+        int button_y = dialog_y + 50;
+        int yes_button_x = dialog_x + 10;
+        int no_button_x = dialog_x + 120;
+
+        ui_render_rect(ui, yes_button_x, button_y, 80, 20, button_bg);
+        ui_render_text(ui, "Yes", yes_button_x + 25, button_y + 5, text_color);
+
+        ui_render_rect(ui, no_button_x, button_y, 80, 20, button_bg);
+        ui_render_text(ui, "No", no_button_x + 30, button_y + 5, text_color);
     }
 
     SDL_RenderPresent(ui->renderer);

@@ -41,21 +41,14 @@ int main(int argc, char* argv[]) {
     Palette palette;
     palette_init(&palette, &config);
 
+    palette_load(&palette, config.default_file);
+
     // Initialize UI system
     UIState ui;
     if (!ui_init(&ui, &config)) {
         printf("Error: Failed to initialize UI system\n");
         SDL_Quit();
         return 1;
-    }
-
-    // Load palette from command line argument if provided
-    if (argc > 1) {
-        if (palette_load(&palette, argv[1])) {
-            printf("Loaded palette from: %s\n", argv[1]);
-        } else {
-            printf("Warning: Could not load palette from: %s\n", argv[1]);
-        }
     }
 
     // Main event loop
