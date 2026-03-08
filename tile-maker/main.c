@@ -1,6 +1,7 @@
 #include <SDL3/SDL.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "../shared/config/config_manager.h"
 #include "../shared/error_handler/error_handler.h"
@@ -28,7 +29,21 @@ typedef struct {
     int mouse_x, mouse_y;
     bool mouse_buttons[8];
     bool mouse_clicked[8];
+
+    char tiles_file_path[CONFIG_MAX_PATH_LENGTH];
+    char palette_file_path[CONFIG_MAX_PATH_LENGTH];
 } AppState;
+
+static void app_resolve_file_path(char* out, size_t out_size, const char* configured,
+                                  const char* fallback) {
+    if (!out || out_size == 0 || !fallback) {
+        return;
+    }
+
+    const char* source = (configured && configured[0] != '\0') ? configured : fallback;
+    strncpy(out, source, out_size - 1);
+    out[out_size - 1] = '\0';
+}
 
 /**
  * Initialize the application
@@ -71,7 +86,10 @@ bool app_init(AppState* app) {
     if (!config_manager_load(&app->config, "config/tile_maker_config.json")) {
         printf("Warning: Failed to load configuration file, using defaults\n");
         if (ErrorHandler_HasError()) {
-            printf("Error: %s\n", ErrorHandler_Get());
+            const Error_t* err = ErrorHandler_Get();
+            if (err) {
+                printf("Error: %s\n", err->message);
+            }
             ErrorHandler_Clear();
         }
     }
@@ -81,10 +99,21 @@ bool app_init(AppState* app) {
     int window_height = config_get_int(&app->config, "display", "window_height", WINDOW_HEIGHT);
     const char* window_title = config_get_string(&app->config, "display", "window_title",
                                                  "Tile Maker v1.0 - SDL3 Edition");
+    const char* configured_tiles_file =
+        config_get_string(&app->config, "files", "default_tiles_file", "tiles.dat");
+    const char* configured_palette_file =
+        config_get_string(&app->config, "files", "default_palette_file", "palette.dat");
+
+    app_resolve_file_path(app->tiles_file_path, sizeof(app->tiles_file_path), configured_tiles_file,
+                          "tiles.dat");
+    app_resolve_file_path(app->palette_file_path, sizeof(app->palette_file_path),
+                          configured_palette_file, "palette.dat");
 
     printf("Starting Tile Maker with configuration:\n");
     printf("  Window: %dx%d\n", window_width, window_height);
     printf("  Title: %s\n", window_title);
+    printf("  Tiles file: %s\n", app->tiles_file_path);
+    printf("  Palette file: %s\n", app->palette_file_path);
 
     // Initialize SDL
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
@@ -241,7 +270,7 @@ void app_handle_keyboard(AppState* app) {
     // S - Save
     if (app->keys[SDL_SCANCODE_S]) {
         app->keys[SDL_SCANCODE_S] = false;
-        if (tiles_save("tiles.dat")) {
+        if (tiles_save(app->tiles_file_path)) {
             ui_set_status(&app->ui, "Tiles saved successfully");
             ui_set_dirty(&app->ui, false);
         } else {
@@ -252,7 +281,7 @@ void app_handle_keyboard(AppState* app) {
     // L - Load
     if (app->keys[SDL_SCANCODE_L]) {
         app->keys[SDL_SCANCODE_L] = false;
-        if (tiles_load("tiles.dat")) {
+        if (tiles_load(app->tiles_file_path)) {
             ui_set_status(&app->ui, "Tiles loaded successfully");
             ui_set_dirty(&app->ui, false);
             tile_sheet_set_selected(&app->tile_sheet, 0);
@@ -334,14 +363,14 @@ void app_update(AppState* app) {
         pixel_editor_set_color(&app->pixel_editor, palette_index);
     } else if (ui_action == 1) {
         // Save
-        if (tiles_save("tiles.dat")) {
+        if (tiles_save(app->tiles_file_path)) {
             ui_set_status(&app->ui, "Tiles saved successfully");
         } else {
             ui_set_status(&app->ui, "Failed to save tiles");
         }
     } else if (ui_action == 2) {
         // Load
-        if (tiles_load("tiles.dat")) {
+        if (tiles_load(app->tiles_file_path)) {
             ui_set_status(&app->ui, "Tiles loaded successfully");
             tile_sheet_set_selected(&app->tile_sheet, 0);
             pixel_editor_set_tile(&app->pixel_editor, 0);
@@ -443,16 +472,16 @@ int main(int argc, char* argv[]) {
 
     // Initialize palette and tiles
     palette_init();
-    if (!palette_load("palette.dat")) {
+    if (!palette_load(app.palette_file_path)) {
         printf("Using default palette\n");
     }
 
     tiles_init();
-    if (tiles_load("tiles.dat")) {
-        ui_set_status(&app.ui, "Tiles loaded from tiles.dat");
+    if (tiles_load(app.tiles_file_path)) {
+        ui_set_status(&app.ui, "Tiles loaded successfully");
         ui_set_dirty(&app.ui, false);
     } else {
-        ui_set_status(&app.ui, "New tile set - no tiles.dat found");
+        ui_set_status(&app.ui, "New tile set - no tiles file found");
         ui_set_dirty(&app.ui, true);
     }
 
@@ -480,7 +509,7 @@ int main(int argc, char* argv[]) {
     if (tiles_is_modified()) {
         printf("\nWarning: You have unsaved changes!\n");
         printf("Your tiles have been modified but not saved.\n");
-        printf("Consider saving your work with 'tiles.dat'.\n");
+        printf("Consider saving your work with '%s'.\n", app.tiles_file_path);
     }
 
     // Cleanup and exit

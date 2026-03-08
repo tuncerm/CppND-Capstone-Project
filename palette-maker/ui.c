@@ -25,6 +25,14 @@ static void ui_render_text(UIState* ui, const char* text, int x, int y, SDL_Colo
 static void ui_render_rect(UIState* ui, int x, int y, int w, int h, SDL_Color color);
 static void ui_render_rect_outline(UIState* ui, int x, int y, int w, int h, SDL_Color color);
 
+static const char* ui_palette_file(const UIState* ui) {
+    static const char* fallback = "palette.dat";
+    if (!ui || !ui->active_config || ui->active_config->default_file[0] == '\0') {
+        return fallback;
+    }
+    return ui->active_config->default_file;
+}
+
 static void ui_sync_selected_swatch(UIState* ui) {
     if (!ui) {
         return;
@@ -132,8 +140,8 @@ static void ui_on_action_click(int id, void* userdata) {
             ui_reset_palette(ui, ui->active_palette);
             break;
         case ACTION_ID_LOAD:
-            if (palette_load(ui->active_palette, "palette.dat")) {
-                printf("Palette loaded from palette.dat\n");
+            if (palette_load(ui->active_palette, ui_palette_file(ui))) {
+                printf("Palette loaded from %s\n", ui_palette_file(ui));
             }
             break;
         default:
@@ -148,8 +156,8 @@ static void ui_on_dialog_click(int id, void* userdata) {
     }
 
     if (id == DIALOG_ID_SAVE_YES) {
-        if (palette_save(ui->active_palette, "palette.dat")) {
-            printf("Palette saved to palette.dat\n");
+        if (palette_save(ui->active_palette, ui_palette_file(ui))) {
+            printf("Palette saved to %s\n", ui_palette_file(ui));
         }
     }
 
@@ -354,6 +362,13 @@ bool ui_init(UIState* ui, const AppConfig* config) {
     SDL_SetRenderLogicalPresentation(ui->renderer, config->window_width, config->window_height,
                                      SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
+    if (!text_renderer_init(&ui->text_renderer, ui->renderer)) {
+        printf("Error: Could not initialize text renderer\n");
+        SDL_DestroyRenderer(ui->renderer);
+        SDL_DestroyWindow(ui->window);
+        return false;
+    }
+
     ui_init_input_elements(ui, config);
 
     printf("UI initialized successfully\n");
@@ -367,9 +382,7 @@ void ui_cleanup(UIState* ui) {
     if (!ui)
         return;
 
-    if (ui->font_texture) {
-        SDL_DestroyTexture(ui->font_texture);
-    }
+    text_renderer_cleanup(&ui->text_renderer);
     if (ui->renderer) {
         SDL_DestroyRenderer(ui->renderer);
     }
@@ -479,8 +492,8 @@ bool ui_handle_event(UIState* ui, Palette* palette, SDL_Event* event, const AppC
         case SDL_EVENT_KEY_DOWN:
             if (ui->show_save_dialog) {
                 if (event->key.key == SDLK_RETURN || event->key.key == SDLK_KP_ENTER) {
-                    if (palette_save(palette, "palette.dat")) {
-                        printf("Palette saved to palette.dat\n");
+                    if (palette_save(palette, ui_palette_file(ui))) {
+                        printf("Palette saved to %s\n", ui_palette_file(ui));
                     }
                     ui->show_save_dialog = false;
                 } else if (event->key.key == SDLK_ESCAPE) {
@@ -494,8 +507,8 @@ bool ui_handle_event(UIState* ui, Palette* palette, SDL_Event* event, const AppC
                 switch (event->key.key) {
                     case SDLK_S:
                         if (event->key.mod & SDL_KMOD_CTRL) {
-                            if (palette_save(palette, "palette.dat")) {
-                                printf("Palette quick-saved to palette.dat\n");
+                            if (palette_save(palette, ui_palette_file(ui))) {
+                                printf("Palette quick-saved to %s\n", ui_palette_file(ui));
                             }
                         } else {
                             ui_show_save_dialog(ui);
@@ -503,14 +516,14 @@ bool ui_handle_event(UIState* ui, Palette* palette, SDL_Event* event, const AppC
                         break;
                     case SDLK_L:
                         if (event->key.mod & SDL_KMOD_CTRL) {
-                            if (palette_load(palette, "palette.dat")) {
-                                printf("Palette quick-loaded from palette.dat\n");
+                            if (palette_load(palette, ui_palette_file(ui))) {
+                                printf("Palette quick-loaded from %s\n", ui_palette_file(ui));
                             }
                         } else {
                             // In a real application, this would open a file dialog.
                             // For now, we'll just load the default palette.
-                            if (palette_load(palette, "palette.dat")) {
-                                printf("Palette loaded from palette.dat\n");
+                            if (palette_load(palette, ui_palette_file(ui))) {
+                                printf("Palette loaded from %s\n", ui_palette_file(ui));
                             }
                         }
                         break;
@@ -686,7 +699,9 @@ void ui_render(UIState* ui, const Palette* palette, const AppConfig* config) {
 
         SDL_Color white = {255, 255, 255, 255};
         ui_render_text(ui, "Save Palette", dialog_x + 10, dialog_y + 10, white);
-        ui_render_text(ui, "Save changes to palette.dat?", dialog_x + 10, dialog_y + 30, white);
+        char save_prompt[CONFIG_MAX_PATH_LENGTH + 32];
+        snprintf(save_prompt, sizeof(save_prompt), "Save changes to %s?", ui_palette_file(ui));
+        ui_render_text(ui, save_prompt, dialog_x + 10, dialog_y + 30, white);
 
         for (int i = 0; i < UI_DIALOG_BUTTON_COUNT; i++) {
             UIInputElement* btn = &ui->save_dialog_buttons[i];
@@ -792,185 +807,11 @@ bool ui_check_unsaved_changes(UIState* ui, const Palette* palette) {
     return true;  // Safe to proceed
 }
 
-/* ----------------------------------------------------------------
- * Simple 5×7 bitmap font with extended special‑character support
- * ----------------------------------------------------------------
- *==============================
- * 1. Character → glyph index
- *==============================*/
-static inline int get_char_index(char c) {
-    if (c == ' ')
-        return 0;
-    if (c >= '0' && c <= '9')
-        return 1 + (c - '0'); /* 1‑10 */
-    if (c >= 'A' && c <= 'Z')
-        return 11 + (c - 'A'); /* 11‑36 */
-    if (c >= 'a' && c <= 'z')
-        return 11 + (c - 'a'); /* map lowercase → uppercase */
-
-    /* Ordered ASCII specials → 37‑59 */
-    switch (c) {
-        case '.':
-            return 37; /* period */
-        case ',':
-            return 38; /* comma  */
-        case ';':
-            return 39; /* semicolon */
-        case ':':
-            return 40; /* colon */
-        case '!':
-            return 41;
-        case '?':
-            return 42;
-        case '-':
-            return 43;
-        case '_':
-            return 44;
-        case '+':
-            return 45;
-        case '=':
-            return 46;
-        case '*':
-            return 47;
-        case '/':
-            return 48;
-        case '\\':
-            return 49;
-        case '<':
-            return 50;
-        case '>':
-            return 51;
-        case '(':
-            return 52;
-        case ')':
-            return 53;
-        case '&':
-            return 54;
-        case '%':
-            return 55;
-        case '\'':
-            return 56; /* apostrophe */
-        case '"':
-            return 57; /* double quote */
-        /* 58 → right‑arrow, 59 → left‑arrow (no ASCII) */
-        default:
-            return 0; /* unknown → space */
-    }
-}
-
-/* Total number of glyphs in the table below */
-#define GLYPH_COUNT 60 /* indices 0‑59 */
-
-/*==============================
- * 2. 5×7 glyph bit‑patterns
- *==============================*/
-/* Each glyph: 7 rows × 5 cols, MSB is left‑most pixel */
-static const uint8_t font_patterns[GLYPH_COUNT][7] = {
-    /* 0  : space */
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-
-    /* 1‑10 : '0'‑'9' */
-    {0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E}, /* 1 → '0' */
-    {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E}, /* 2 → '1' */
-    {0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F}, /* 3 → '2' */
-    {0x1F, 0x02, 0x04, 0x02, 0x01, 0x11, 0x0E}, /* 4 → '3' */
-    {0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02}, /* 5 → '4' */
-    {0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E}, /* 6 → '5' */
-    {0x06, 0x08, 0x10, 0x1E, 0x11, 0x11, 0x0E}, /* 7 → '6' */
-    {0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08}, /* 8 → '7' */
-    {0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E}, /* 9 → '8' */
-    {0x0E, 0x11, 0x11, 0x0F, 0x01, 0x02, 0x0C}, /* 10 → '9' */
-
-    /* 11‑36 : 'A'‑'Z' */
-    {0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}, /* 11 */
-    {0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E}, /* 12 */
-    {0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E}, /* 13 */
-    {0x1C, 0x12, 0x11, 0x11, 0x11, 0x12, 0x1C}, /* 14 */
-    {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F}, /* 15 */
-    {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10}, /* 16 */
-    {0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0F}, /* 17 */
-    {0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}, /* 18 */
-    {0x0E, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0E}, /* 19 */
-    {0x07, 0x02, 0x02, 0x02, 0x02, 0x12, 0x0C}, /* 20 */
-    {0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11}, /* 21 */
-    {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F}, /* 22 */
-    {0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11}, /* 23 */
-    {0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11}, /* 24 */
-    {0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E}, /* 25 */
-    {0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10}, /* 26 */
-    {0x0E, 0x11, 0x11, 0x15, 0x12, 0x0E, 0x01}, /* 27 */
-    {0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11}, /* 28 */
-    {0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E}, /* 29 */
-    {0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04}, /* 30 */
-    {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E}, /* 31 */
-    {0x11, 0x11, 0x11, 0x11, 0x0A, 0x0A, 0x04}, /* 32 */
-    {0x11, 0x11, 0x11, 0x15, 0x15, 0x1B, 0x11}, /* 33 */
-    {0x11, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x11}, /* 34 */
-    {0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04}, /* 35 */
-    {0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F}, /* 36 */
-
-    /* 37‑59 : ordered specials */
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00}, /* 37 '.' */
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x08}, /* 38 ',' */
-    {0x00, 0x00, 0x04, 0x00, 0x00, 0x04, 0x08}, /* 39 ';' */
-    {0x00, 0x00, 0x04, 0x00, 0x00, 0x04, 0x00}, /* 40 ':' */
-    {0x04, 0x04, 0x04, 0x04, 0x00, 0x04, 0x00}, /* 41 '!' */
-    {0x0E, 0x11, 0x02, 0x04, 0x00, 0x04, 0x00}, /* 42 '?' */
-    {0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00}, /* 43 '-' */
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F}, /* 44 '_' */
-    {0x00, 0x04, 0x04, 0x1F, 0x04, 0x04, 0x00}, /* 45 '+' */
-    {0x00, 0x0E, 0x00, 0x0E, 0x00, 0x0E, 0x00}, /* 46 '=' */
-    {0x04, 0x0A, 0x11, 0x1F, 0x11, 0x11, 0x11}, /* 47 '*' */
-    {0x01, 0x02, 0x04, 0x08, 0x10, 0x00, 0x00}, /* 48 '/' */
-    {0x10, 0x08, 0x04, 0x02, 0x01, 0x00, 0x00}, /* 49 '\' */
-    {0x00, 0x04, 0x08, 0x10, 0x08, 0x04, 0x00}, /* 50 '<' */
-    {0x00, 0x10, 0x08, 0x04, 0x08, 0x10, 0x00}, /* 51 '>' */
-    {0x08, 0x0C, 0x0A, 0x09, 0x0A, 0x0C, 0x08}, /* 52 '(' */
-    {0x02, 0x06, 0x0A, 0x12, 0x0A, 0x06, 0x02}, /* 53 ')' */
-    {0x0A, 0x15, 0x15, 0x0E, 0x04, 0x04, 0x04}, /* 54 '&' */
-    {0x06, 0x09, 0x06, 0x15, 0x09, 0x09, 0x16}, /* 55 '%' */
-    {0x02, 0x05, 0x02, 0x00, 0x00, 0x00, 0x00}, /* 56 '\'' */
-    {0x0A, 0x0A, 0x0A, 0x00, 0x00, 0x00, 0x00}, /* 57 '"' */
-    {0x00, 0x04, 0x02, 0x1F, 0x02, 0x04, 0x00}, /* 58 '→' */
-    {0x00, 0x02, 0x04, 0x1F, 0x04, 0x02, 0x00}, /* 59 '←' */
-};
-
-/*==============================
- * 3. Sanity check (debug builds)
- *==============================*/
-static inline void font_assert_init(void) {
-#if !defined(NDEBUG)
-    assert(GLYPH_COUNT == (int)(sizeof font_patterns / sizeof font_patterns[0]));
-#endif
-}
-
-/*==============================
- * 4. Text‑render helper
- *==============================*/
 static void ui_render_text(UIState* ui, const char* text, int x, int y, SDL_Color color) {
     if (!ui || !text) {
         return;
     }
-
-    SDL_SetRenderDrawColor(ui->renderer, color.r, color.g, color.b, color.a);
-
-    int len = (int)strlen(text);
-    for (int i = 0; i < len && i < 32; i++) {
-        int char_index = get_char_index(text[i]);
-        const uint8_t* pattern = font_patterns[(char_index >= 0 && char_index < GLYPH_COUNT)
-                                                   ? char_index
-                                                   : 0];
-
-        // Draw character using bitmap pattern
-        for (int row = 0; row < 7; row++) {
-            for (int col = 0; col < 5; col++) {
-                if (pattern[row] & (1 << (4 - col))) {
-                    SDL_FRect pixel = {(float)(x + i * 6 + col), (float)(y + row), 1.0f, 1.0f};
-                    SDL_RenderFillRect(ui->renderer, &pixel);
-                }
-            }
-        }
-    }
+    text_render_string(&ui->text_renderer, text, x, y, color);
 }
 
 /**
@@ -1065,3 +906,4 @@ void ui_render_rgba_controls(UIState* ui, const Palette* palette, const AppConfi
         ui_render_text(ui, "+10", btn4_x + 5, control_y + 5, text_color);
     }
 }
+

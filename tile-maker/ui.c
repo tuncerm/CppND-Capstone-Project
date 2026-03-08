@@ -14,7 +14,8 @@
 #define DIALOG_ID_YES 3001
 #define DIALOG_ID_NO 3002
 
-static void render_button(SDL_Renderer* renderer, const UIButton* button);
+static void render_button(UIState* ui, const UIButton* button);
+static void render_text(UIState* ui, const char* text, int x, int y, SDL_Color color);
 static int ui_text_width(const char* text);
 
 static void ui_sync_palette_selection(UIState* ui) {
@@ -135,7 +136,9 @@ bool ui_init(UIState* ui, SDL_Renderer* renderer) {
     // Initialize status
     strcpy(ui->status_text, "Tile Maker Ready");
     ui->dirty_indicator = false;
-    ui->font_texture = NULL;
+    if (!text_renderer_init(&ui->text_renderer, renderer)) {
+        return false;
+    }
 
     // Initialize double-click tracking
     ui->last_click_time = 0;
@@ -168,10 +171,7 @@ void ui_cleanup(UIState* ui) {
     if (!ui)
         return;
 
-    if (ui->font_texture) {
-        SDL_DestroyTexture(ui->font_texture);
-        ui->font_texture = NULL;
-    }
+    text_renderer_cleanup(&ui->text_renderer);
 
     printf("UI cleaned up\n");
 }
@@ -229,14 +229,14 @@ void ui_render(UIState* ui, SDL_Renderer* renderer) {
     }
 
     // Render buttons
-    render_button(renderer, &ui->save_button);
-    render_button(renderer, &ui->load_button);
-    render_button(renderer, &ui->new_button);
-    render_button(renderer, &ui->quit_button);
+    render_button(ui, &ui->save_button);
+    render_button(ui, &ui->load_button);
+    render_button(ui, &ui->new_button);
+    render_button(ui, &ui->quit_button);
 
     // Render status text
     SDL_Color text_color = {255, 255, 255, 255};
-    render_text(renderer, ui->status_text, 10, WINDOW_HEIGHT - 80, text_color);
+    render_text(ui, ui->status_text, 10, WINDOW_HEIGHT - 80, text_color);
 
     // Render dirty indicator
     if (ui->dirty_indicator) {
@@ -244,7 +244,7 @@ void ui_render(UIState* ui, SDL_Renderer* renderer) {
         SDL_FRect dirty_rect = {WINDOW_WIDTH - 30.0f, 10.0f, 20.0f, 20.0f};
         SDL_RenderFillRect(renderer, &dirty_rect);
 
-        render_text(renderer, "*", WINDOW_WIDTH - 25, 15, text_color);
+        render_text(ui, "*", WINDOW_WIDTH - 25, 15, text_color);
     }
 
     // Render quit confirmation dialog
@@ -256,10 +256,10 @@ void ui_render(UIState* ui, SDL_Renderer* renderer) {
         SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
         SDL_RenderRect(renderer, &dialog_rect);
 
-        render_text(renderer, "Unsaved changes! Quit?", (int)dialog_rect.x + 10,
-                    (int)dialog_rect.y + 10, (SDL_Color){255, 255, 255, 255});
-        render_button(renderer, &ui->quit_yes_button);
-        render_button(renderer, &ui->quit_no_button);
+        render_text(ui, "Unsaved changes! Quit?", (int)dialog_rect.x + 10, (int)dialog_rect.y + 10,
+                    (SDL_Color){255, 255, 255, 255});
+        render_button(ui, &ui->quit_yes_button);
+        render_button(ui, &ui->quit_no_button);
     }
 }
 
@@ -412,199 +412,28 @@ static int ui_text_width(const char* text) {
 /**
  * Render a simple filled rectangle button
  */
-static void render_button(SDL_Renderer* renderer, const UIButton* button) {
-    if (!renderer || !button)
+static void render_button(UIState* ui, const UIButton* button) {
+    if (!ui || !ui->text_renderer.renderer || !button)
         return;
 
     SDL_Color base = {60, 60, 60, 255};
     SDL_Color hover = {82, 82, 82, 255};
     SDL_Color border = {128, 128, 128, 255};
 
-    ui_input_widgets_render_button(renderer, &button->input, base, hover, border, 0.85f);
+    ui_input_widgets_render_button(ui->text_renderer.renderer, &button->input, base, hover, border,
+                                   0.85f);
 
     SDL_Color text_color = {255, 255, 255, 255};
     int text_x =
         (int)(button->input.bounds.x + (button->input.bounds.w - (float)ui_text_width(button->text)) * 0.5f);
     int text_y = (int)(button->input.bounds.y + (button->input.bounds.h - 7.0f) * 0.5f);
-    render_text(renderer, button->text, text_x, text_y, text_color);
+    render_text(ui, button->text, text_x, text_y, text_color);
 }
 
-/* ----------------------------------------------------------------
- * Simple 5×7 bitmap font with extended special‑character support
- * ----------------------------------------------------------------
- *==============================
- * 1. Character → glyph index
- *==============================*/
-static inline int get_char_index(char c) {
-    if (c == ' ')
-        return 0;
-    if (c >= '0' && c <= '9')
-        return 1 + (c - '0'); /* 1‑10 */
-    if (c >= 'A' && c <= 'Z')
-        return 11 + (c - 'A'); /* 11‑36 */
-    if (c >= 'a' && c <= 'z')
-        return 11 + (c - 'a'); /* map lowercase → uppercase */
-
-    /* Ordered ASCII specials → 37‑59 */
-    switch (c) {
-        case '.':
-            return 37; /* period */
-        case ',':
-            return 38; /* comma  */
-        case ';':
-            return 39; /* semicolon */
-        case ':':
-            return 40; /* colon */
-        case '!':
-            return 41;
-        case '?':
-            return 42;
-        case '-':
-            return 43;
-        case '_':
-            return 44;
-        case '+':
-            return 45;
-        case '=':
-            return 46;
-        case '*':
-            return 47;
-        case '/':
-            return 48;
-        case '\\':
-            return 49;
-        case '<':
-            return 50;
-        case '>':
-            return 51;
-        case '(':
-            return 52;
-        case ')':
-            return 53;
-        case '&':
-            return 54;
-        case '%':
-            return 55;
-        case '\'':
-            return 56; /* apostrophe */
-        case '"':
-            return 57; /* double quote */
-        /* 58 → right‑arrow, 59 → left‑arrow (no ASCII) */
-        default:
-            return 0; /* unknown → space */
-    }
-}
-
-/* Total number of glyphs in the table below */
-#define GLYPH_COUNT 60 /* indices 0‑59 */
-
-/*==============================
- * 2. 5×7 glyph bit‑patterns
- *==============================*/
-/* Each glyph: 7 rows × 5 cols, MSB is left‑most pixel */
-static const uint8_t font_patterns[GLYPH_COUNT][7] = {
-    /* 0  : space */
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-
-    /* 1‑10 : '0'‑'9' */
-    {0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E}, /* 1 → '0' */
-    {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E}, /* 2 → '1' */
-    {0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F}, /* 3 → '2' */
-    {0x1F, 0x02, 0x04, 0x02, 0x01, 0x11, 0x0E}, /* 4 → '3' */
-    {0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02}, /* 5 → '4' */
-    {0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E}, /* 6 → '5' */
-    {0x06, 0x08, 0x10, 0x1E, 0x11, 0x11, 0x0E}, /* 7 → '6' */
-    {0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08}, /* 8 → '7' */
-    {0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E}, /* 9 → '8' */
-    {0x0E, 0x11, 0x11, 0x0F, 0x01, 0x02, 0x0C}, /* 10 → '9' */
-
-    /* 11‑36 : 'A'‑'Z' */
-    {0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}, /* 11 */
-    {0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E}, /* 12 */
-    {0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E}, /* 13 */
-    {0x1C, 0x12, 0x11, 0x11, 0x11, 0x12, 0x1C}, /* 14 */
-    {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F}, /* 15 */
-    {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10}, /* 16 */
-    {0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0F}, /* 17 */
-    {0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}, /* 18 */
-    {0x0E, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0E}, /* 19 */
-    {0x07, 0x02, 0x02, 0x02, 0x02, 0x12, 0x0C}, /* 20 */
-    {0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11}, /* 21 */
-    {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F}, /* 22 */
-    {0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11}, /* 23 */
-    {0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11}, /* 24 */
-    {0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E}, /* 25 */
-    {0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10}, /* 26 */
-    {0x0E, 0x11, 0x11, 0x15, 0x12, 0x0E, 0x01}, /* 27 */
-    {0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11}, /* 28 */
-    {0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E}, /* 29 */
-    {0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04}, /* 30 */
-    {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E}, /* 31 */
-    {0x11, 0x11, 0x11, 0x11, 0x0A, 0x0A, 0x04}, /* 32 */
-    {0x11, 0x11, 0x11, 0x15, 0x15, 0x1B, 0x11}, /* 33 */
-    {0x11, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x11}, /* 34 */
-    {0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04}, /* 35 */
-    {0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F}, /* 36 */
-
-    /* 37‑59 : ordered specials */
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00}, /* 37 '.' */
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x08}, /* 38 ',' */
-    {0x00, 0x00, 0x04, 0x00, 0x00, 0x04, 0x08}, /* 39 ';' */
-    {0x00, 0x00, 0x04, 0x00, 0x00, 0x04, 0x00}, /* 40 ':' */
-    {0x04, 0x04, 0x04, 0x04, 0x00, 0x04, 0x00}, /* 41 '!' */
-    {0x0E, 0x11, 0x02, 0x04, 0x00, 0x04, 0x00}, /* 42 '?' */
-    {0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00}, /* 43 '-' */
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F}, /* 44 '_' */
-    {0x00, 0x04, 0x04, 0x1F, 0x04, 0x04, 0x00}, /* 45 '+' */
-    {0x00, 0x0E, 0x00, 0x0E, 0x00, 0x0E, 0x00}, /* 46 '=' */
-    {0x04, 0x0A, 0x11, 0x1F, 0x11, 0x11, 0x11}, /* 47 '*' */
-    {0x01, 0x02, 0x04, 0x08, 0x10, 0x00, 0x00}, /* 48 '/' */
-    {0x10, 0x08, 0x04, 0x02, 0x01, 0x00, 0x00}, /* 49 '\' */
-    {0x00, 0x04, 0x08, 0x10, 0x08, 0x04, 0x00}, /* 50 '<' */
-    {0x00, 0x10, 0x08, 0x04, 0x08, 0x10, 0x00}, /* 51 '>' */
-    {0x08, 0x0C, 0x0A, 0x09, 0x0A, 0x0C, 0x08}, /* 52 '(' */
-    {0x02, 0x06, 0x0A, 0x12, 0x0A, 0x06, 0x02}, /* 53 ')' */
-    {0x0A, 0x15, 0x15, 0x0E, 0x04, 0x04, 0x04}, /* 54 '&' */
-    {0x06, 0x09, 0x06, 0x15, 0x09, 0x09, 0x16}, /* 55 '%' */
-    {0x02, 0x05, 0x02, 0x00, 0x00, 0x00, 0x00}, /* 56 '\'' */
-    {0x0A, 0x0A, 0x0A, 0x00, 0x00, 0x00, 0x00}, /* 57 '"' */
-    {0x00, 0x04, 0x02, 0x1F, 0x02, 0x04, 0x00}, /* 58 '→' */
-    {0x00, 0x02, 0x04, 0x1F, 0x04, 0x02, 0x00}, /* 59 '←' */
-};
-
-/*==============================
- * 3. Sanity check (debug builds)
- *==============================*/
-static inline void font_assert_init(void) {
-#if !defined(NDEBUG)
-    assert(GLYPH_COUNT == (int)(sizeof font_patterns / sizeof font_patterns[0]));
-#endif
-}
-
-/*==============================
- * 4. Text‑render helper
- *==============================*/
-void render_text(SDL_Renderer* renderer, const char* text, int x, int y, SDL_Color color) {
-    if (!renderer || !text) {
+static void render_text(UIState* ui, const char* text, int x, int y, SDL_Color color) {
+    if (!ui || !text) {
         return;
     }
 
-    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-
-    int len = (int)strlen(text);
-    for (int i = 0; i < len && i < 32; i++) {
-        int char_index = get_char_index(text[i]);
-        const uint8_t* pattern =
-            font_patterns[(char_index >= 0 && char_index < GLYPH_COUNT) ? char_index : 0];
-
-        // Draw character using bitmap pattern
-        for (int row = 0; row < 7; row++) {
-            for (int col = 0; col < 5; col++) {
-                if (pattern[row] & (1 << (4 - col))) {
-                    SDL_FRect pixel = {(float)(x + i * 6 + col), (float)(y + row), 1.0f, 1.0f};
-                    SDL_RenderFillRect(renderer, &pixel);
-                }
-            }
-        }
-    }
+    text_render_string(&ui->text_renderer, text, x, y, color);
 }

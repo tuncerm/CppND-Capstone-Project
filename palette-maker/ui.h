@@ -5,6 +5,7 @@
 #include "ui_input.h"
 #include "config.h"
 #include "palette.h"
+#include "../shared/text_renderer/text_renderer.h"
 
 // --- UI Colors ---
 #define COLOR_BACKGROUND {64, 64, 64, 255}
@@ -114,7 +115,7 @@
 typedef struct {
     SDL_Window* window;
     SDL_Renderer* renderer;
-    SDL_Texture* font_texture;  // For text rendering
+    TextRenderer text_renderer;
 
     int selected_swatch;     // Currently selected swatch index (0-15)
     bool color_picker_open;  // Is color picker dialog open

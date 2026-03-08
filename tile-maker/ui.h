@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 #include "../shared/config/config_manager.h"
+#include "../shared/text_renderer/text_renderer.h"
 #include "../shared/ui_framework/ui_input.h"
 
 #include "constants.h"
@@ -40,8 +41,8 @@ typedef struct {
     char status_text[256];
     bool dirty_indicator;
 
-    // Font rendering (simple text)
-    SDL_Texture* font_texture;
+    // Shared text rendering
+    TextRenderer text_renderer;
 
     // Double-click tracking
     Uint64 last_click_time;
@@ -145,16 +146,5 @@ void ui_set_dirty(UIState* ui, bool dirty);
  * @return true if this is a double-click, false otherwise
  */
 bool ui_check_double_click(UIState* ui, int tile_id);
-
-/**
- * Render simple text (basic implementation)
- *
- * @param renderer SDL renderer
- * @param text Text to render
- * @param x X position
- * @param y Y position
- * @param color Text color
- */
-void render_text(SDL_Renderer* renderer, const char* text, int x, int y, SDL_Color color);
 
 #endif  // UI_H

@@ -11,6 +11,7 @@
  */
 int main(int argc, char* argv[]) {
     (void)argv;  // Suppress unused parameter warning
+    (void)argc;  // Suppress unused parameter warning
 
     // Load configuration
     AppConfig config;
@@ -37,11 +38,14 @@ int main(int argc, char* argv[]) {
     printf("  - Enter: Confirm dialog actions\n");
     printf("\n");
 
+    const char* palette_file = (config.default_file[0] != '\0') ? config.default_file : "palette.dat";
+    printf("Using palette file: %s\n", palette_file);
+
     // Initialize palette with default colors
     Palette palette;
     palette_init(&palette, &config);
 
-    palette_load(&palette, config.default_file);
+    palette_load(&palette, palette_file);
 
     // Initialize UI system
     UIState ui;
