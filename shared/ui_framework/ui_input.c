@@ -52,6 +52,16 @@ void ui_input_init(UIInputElement* element, int id, SDL_FRect bounds) {
     element->userdata = 0;
 }
 
+void ui_input_init_clickable(UIInputElement* element, int id, SDL_FRect bounds, UIInputOnClick on_click,
+                             void* userdata) {
+    if (!element) {
+        return;
+    }
+
+    ui_input_init(element, id, bounds);
+    ui_input_set_callbacks(element, on_click, NULL, userdata);
+}
+
 void ui_input_set_callbacks(UIInputElement* element, UIInputOnClick on_click,
                             UIInputOnChange on_change, void* userdata) {
     if (!element) {

@@ -210,8 +210,8 @@ static void ui_init_input_elements(UIState* ui, const AppConfig* config) {
                                 (float)(config->grid_start_y +
                                          row * (config->swatch_size + config->swatch_border)),
                                 (float)config->swatch_size, (float)config->swatch_size};
-            ui_input_init(&ui->swatch_inputs[index], SWATCH_ID_BASE + index, bounds);
-            ui_input_set_callbacks(&ui->swatch_inputs[index], ui_on_swatch_click, NULL, ui);
+            ui_input_init_clickable(&ui->swatch_inputs[index], SWATCH_ID_BASE + index, bounds,
+                                    ui_on_swatch_click, ui);
         }
     }
 
@@ -221,20 +221,23 @@ static void ui_init_input_elements(UIState* ui, const AppConfig* config) {
     int reset_button_x = save_button_x + config->action_button_width + 10;
     int load_button_x = reset_button_x + config->action_button_width + 10;
 
-    ui_input_init(&ui->action_buttons[0], ACTION_ID_SAVE,
-                  (SDL_FRect){(float)save_button_x, (float)action_button_y,
-                              (float)config->action_button_width, (float)config->action_button_height});
-    ui_input_set_callbacks(&ui->action_buttons[0], ui_on_action_click, NULL, ui);
+    ui_input_init_clickable(&ui->action_buttons[0], ACTION_ID_SAVE,
+                            (SDL_FRect){(float)save_button_x, (float)action_button_y,
+                                        (float)config->action_button_width,
+                                        (float)config->action_button_height},
+                            ui_on_action_click, ui);
 
-    ui_input_init(&ui->action_buttons[1], ACTION_ID_RESET,
-                  (SDL_FRect){(float)reset_button_x, (float)action_button_y,
-                              (float)config->action_button_width, (float)config->action_button_height});
-    ui_input_set_callbacks(&ui->action_buttons[1], ui_on_action_click, NULL, ui);
+    ui_input_init_clickable(&ui->action_buttons[1], ACTION_ID_RESET,
+                            (SDL_FRect){(float)reset_button_x, (float)action_button_y,
+                                        (float)config->action_button_width,
+                                        (float)config->action_button_height},
+                            ui_on_action_click, ui);
 
-    ui_input_init(&ui->action_buttons[2], ACTION_ID_LOAD,
-                  (SDL_FRect){(float)load_button_x, (float)action_button_y,
-                              (float)config->action_button_width, (float)config->action_button_height});
-    ui_input_set_callbacks(&ui->action_buttons[2], ui_on_action_click, NULL, ui);
+    ui_input_init_clickable(&ui->action_buttons[2], ACTION_ID_LOAD,
+                            (SDL_FRect){(float)load_button_x, (float)action_button_y,
+                                        (float)config->action_button_width,
+                                        (float)config->action_button_height},
+                            ui_on_action_click, ui);
 
     for (int channel = 0; channel < UI_RGBA_CHANNEL_COUNT; channel++) {
         float control_y = (float)(config->ui_panel_y + 20 + channel * config->ui_panel_row_height);
@@ -278,13 +281,13 @@ static void ui_init_input_elements(UIState* ui, const AppConfig* config) {
         int yes_button_x = dialog_x + 10;
         int no_button_x = dialog_x + 120;
 
-        ui_input_init(&ui->save_dialog_buttons[0], DIALOG_ID_SAVE_YES,
-                      (SDL_FRect){(float)yes_button_x, (float)button_y, 80.0f, 20.0f});
-        ui_input_set_callbacks(&ui->save_dialog_buttons[0], ui_on_dialog_click, NULL, ui);
+        ui_input_init_clickable(&ui->save_dialog_buttons[0], DIALOG_ID_SAVE_YES,
+                                (SDL_FRect){(float)yes_button_x, (float)button_y, 80.0f, 20.0f},
+                                ui_on_dialog_click, ui);
 
-        ui_input_init(&ui->save_dialog_buttons[1], DIALOG_ID_SAVE_NO,
-                      (SDL_FRect){(float)no_button_x, (float)button_y, 80.0f, 20.0f});
-        ui_input_set_callbacks(&ui->save_dialog_buttons[1], ui_on_dialog_click, NULL, ui);
+        ui_input_init_clickable(&ui->save_dialog_buttons[1], DIALOG_ID_SAVE_NO,
+                                (SDL_FRect){(float)no_button_x, (float)button_y, 80.0f, 20.0f},
+                                ui_on_dialog_click, ui);
     }
 
     ui_sync_selected_swatch(ui);

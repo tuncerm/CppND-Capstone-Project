@@ -96,8 +96,8 @@ bool ui_init(UIState* ui, SDL_Renderer* renderer) {
         SDL_FRect swatch_bounds = {(float)(ui->palette_bar_rect.x + 10 + i * swatch_spacing),
                                    ui->palette_bar_rect.y + 10.0f, (float)PALETTE_SWATCH_SIZE,
                                    (float)PALETTE_SWATCH_SIZE};
-        ui_input_init(&ui->palette_swatches[i], PALETTE_ID_BASE + i, swatch_bounds);
-        ui_input_set_callbacks(&ui->palette_swatches[i], ui_on_palette_click, NULL, ui);
+        ui_input_init_clickable(&ui->palette_swatches[i], PALETTE_ID_BASE + i, swatch_bounds,
+                                ui_on_palette_click, ui);
     }
 
     ui->selected_palette_index = 1;  // Start with palette index 1 (not black)
@@ -107,31 +107,29 @@ bool ui_init(UIState* ui, SDL_Renderer* renderer) {
     int button_y = 10;
     int button_spacing = BUTTON_WIDTH + 10;
 
-    ui_input_init(&ui->save_button.input, ACTION_ID_SAVE,
-                  (SDL_FRect){10.0f, (float)button_y, (float)BUTTON_WIDTH, (float)BUTTON_HEIGHT});
+    ui_input_init_clickable(&ui->save_button.input, ACTION_ID_SAVE,
+                            (SDL_FRect){10.0f, (float)button_y, (float)BUTTON_WIDTH,
+                                        (float)BUTTON_HEIGHT},
+                            ui_on_action_click, ui);
     strcpy(ui->save_button.text, "Save (S)");
-    ui_input_set_callbacks(&ui->save_button.input, ui_on_action_click, NULL, ui);
 
-    ui_input_init(
-        &ui->load_button.input, ACTION_ID_LOAD,
-        (SDL_FRect){(float)(10 + button_spacing), (float)button_y, (float)BUTTON_WIDTH,
-                    (float)BUTTON_HEIGHT});
+    ui_input_init_clickable(&ui->load_button.input, ACTION_ID_LOAD,
+                            (SDL_FRect){(float)(10 + button_spacing), (float)button_y,
+                                        (float)BUTTON_WIDTH, (float)BUTTON_HEIGHT},
+                            ui_on_action_click, ui);
     strcpy(ui->load_button.text, "Load (L)");
-    ui_input_set_callbacks(&ui->load_button.input, ui_on_action_click, NULL, ui);
 
-    ui_input_init(
-        &ui->new_button.input, ACTION_ID_NEW,
-        (SDL_FRect){(float)(10 + button_spacing * 2), (float)button_y, (float)BUTTON_WIDTH,
-                    (float)BUTTON_HEIGHT});
+    ui_input_init_clickable(&ui->new_button.input, ACTION_ID_NEW,
+                            (SDL_FRect){(float)(10 + button_spacing * 2), (float)button_y,
+                                        (float)BUTTON_WIDTH, (float)BUTTON_HEIGHT},
+                            ui_on_action_click, ui);
     strcpy(ui->new_button.text, "New");
-    ui_input_set_callbacks(&ui->new_button.input, ui_on_action_click, NULL, ui);
 
-    ui_input_init(
-        &ui->quit_button.input, ACTION_ID_QUIT,
-        (SDL_FRect){(float)(10 + button_spacing * 3), (float)button_y, (float)BUTTON_WIDTH,
-                    (float)BUTTON_HEIGHT});
+    ui_input_init_clickable(&ui->quit_button.input, ACTION_ID_QUIT,
+                            (SDL_FRect){(float)(10 + button_spacing * 3), (float)button_y,
+                                        (float)BUTTON_WIDTH, (float)BUTTON_HEIGHT},
+                            ui_on_action_click, ui);
     strcpy(ui->quit_button.text, "Quit (ESC)");
-    ui_input_set_callbacks(&ui->quit_button.input, ui_on_action_click, NULL, ui);
 
     // Initialize status
     strcpy(ui->status_text, "Tile Maker Ready");
@@ -146,17 +144,17 @@ bool ui_init(UIState* ui, SDL_Renderer* renderer) {
 
     // Initialize quit confirmation dialog
     ui->show_quit_dialog = false;
-    ui_input_init(&ui->quit_yes_button.input, DIALOG_ID_YES,
-                  (SDL_FRect){(float)(WINDOW_WIDTH / 2 - 110), (float)(WINDOW_HEIGHT / 2), 100.0f,
-                              40.0f});
+    ui_input_init_clickable(&ui->quit_yes_button.input, DIALOG_ID_YES,
+                            (SDL_FRect){(float)(WINDOW_WIDTH / 2 - 110),
+                                        (float)(WINDOW_HEIGHT / 2), 100.0f, 40.0f},
+                            ui_on_dialog_click, ui);
     strcpy(ui->quit_yes_button.text, "Yes");
-    ui_input_set_callbacks(&ui->quit_yes_button.input, ui_on_dialog_click, NULL, ui);
 
-    ui_input_init(&ui->quit_no_button.input, DIALOG_ID_NO,
-                  (SDL_FRect){(float)(WINDOW_WIDTH / 2 + 10), (float)(WINDOW_HEIGHT / 2), 100.0f,
-                              40.0f});
+    ui_input_init_clickable(&ui->quit_no_button.input, DIALOG_ID_NO,
+                            (SDL_FRect){(float)(WINDOW_WIDTH / 2 + 10), (float)(WINDOW_HEIGHT / 2),
+                                        100.0f, 40.0f},
+                            ui_on_dialog_click, ui);
     strcpy(ui->quit_no_button.text, "No");
-    ui_input_set_callbacks(&ui->quit_no_button.input, ui_on_dialog_click, NULL, ui);
 
     ui->pending_action = 0;
 

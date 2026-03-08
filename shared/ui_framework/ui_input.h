@@ -45,6 +45,8 @@ typedef struct {
 } UIInputElement;
 
 void ui_input_init(UIInputElement* element, int id, SDL_FRect bounds);
+void ui_input_init_clickable(UIInputElement* element, int id, SDL_FRect bounds, UIInputOnClick on_click,
+                             void* userdata);
 void ui_input_set_callbacks(UIInputElement* element, UIInputOnClick on_click,
                             UIInputOnChange on_change, void* userdata);
 void ui_input_set_state_callbacks(UIInputElement* element, UIInputOnHover on_hover,
