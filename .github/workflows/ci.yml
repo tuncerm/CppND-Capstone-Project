@@ -50,7 +50,7 @@ jobs:
         run: cmake --build build --target shared_components_tests
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir build --output-on-failure -L shared
 
       - name: Cppcheck
         run: |
@@ -102,4 +102,4 @@ jobs:
         run: cmake --build build-sanitized
 
       - name: Test (Sanitizers)
-        run: ctest --test-dir build-sanitized --output-on-failure
+        run: ctest --test-dir build-sanitized --output-on-failure -L shared

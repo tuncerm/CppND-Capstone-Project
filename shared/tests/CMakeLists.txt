@@ -117,9 +117,10 @@ add_test(
 )
 
 if(SHARED_COMPONENTS_HEADLESS_TESTS)
-    set(SHARED_TEST_ENV "SDL_VIDEO_DRIVER=dummy")
+    set(SHARED_TEST_ENV "SDL_VIDEODRIVER=dummy")
     set_tests_properties(${TEST_TARGET} PROPERTIES ENVIRONMENT "${SHARED_TEST_ENV}")
 endif()
+set_tests_properties(${TEST_TARGET} PROPERTIES LABELS "shared;aggregate")
 
 # Test discovery for individual test cases
 if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.10)
@@ -130,11 +131,14 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.10)
             PROPERTIES
                 VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
                 ENVIRONMENT "${SHARED_TEST_ENV}"
+                LABELS "shared"
         )
     else()
         gtest_discover_tests(${TEST_TARGET}
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-            PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+            PROPERTIES
+                VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+                LABELS "shared"
         )
     endif()
 endif()
