@@ -2,7 +2,76 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "ui_input_widgets.h"
 #include "palette_io.h"
+
+#define DOUBLE_CLICK_THRESHOLD_MS 500
+#define PALETTE_ID_BASE 1000
+#define ACTION_ID_SAVE 2001
+#define ACTION_ID_LOAD 2002
+#define ACTION_ID_NEW 2003
+#define ACTION_ID_QUIT 2004
+#define DIALOG_ID_YES 3001
+#define DIALOG_ID_NO 3002
+
+static void render_button(SDL_Renderer* renderer, const UIButton* button);
+static int ui_text_width(const char* text);
+
+static void ui_sync_palette_selection(UIState* ui) {
+    if (!ui) {
+        return;
+    }
+
+    for (int i = 0; i < 16; i++) {
+        ui_input_set_selected(&ui->palette_swatches[i], i == ui->selected_palette_index);
+    }
+}
+
+static void ui_on_palette_click(int id, void* userdata) {
+    UIState* ui = (UIState*)userdata;
+    if (!ui) {
+        return;
+    }
+
+    const int index = id - PALETTE_ID_BASE;
+    if (index < 0 || index >= 16) {
+        return;
+    }
+
+    ui->selected_palette_index = index;
+    ui_sync_palette_selection(ui);
+    ui->pending_action = PALETTE_SELECTION_OFFSET + index;
+}
+
+static void ui_on_action_click(int id, void* userdata) {
+    UIState* ui = (UIState*)userdata;
+    if (!ui) {
+        return;
+    }
+
+    if (id == ACTION_ID_SAVE) {
+        ui->pending_action = 1;
+    } else if (id == ACTION_ID_LOAD) {
+        ui->pending_action = 2;
+    } else if (id == ACTION_ID_NEW) {
+        ui->pending_action = 3;
+    } else if (id == ACTION_ID_QUIT) {
+        ui->pending_action = 4;
+    }
+}
+
+static void ui_on_dialog_click(int id, void* userdata) {
+    UIState* ui = (UIState*)userdata;
+    if (!ui) {
+        return;
+    }
+
+    if (id == DIALOG_ID_YES) {
+        ui->pending_action = 5;
+    } else if (id == DIALOG_ID_NO) {
+        ui->show_quit_dialog = false;
+    }
+}
 
 /**
  * Initialize UI system
@@ -12,69 +81,60 @@ bool ui_init(UIState* ui, SDL_Renderer* renderer) {
         return false;
     }
 
+    memset(ui, 0, sizeof(*ui));
+
     // Initialize palette bar
-    ui->palette_bar_rect.x = 10;
-    ui->palette_bar_rect.y = WINDOW_HEIGHT - PALETTE_BAR_HEIGHT - 10;
-    ui->palette_bar_rect.w = WINDOW_WIDTH - 20;
-    ui->palette_bar_rect.h = PALETTE_BAR_HEIGHT;
+    ui->palette_bar_rect.x = 10.0f;
+    ui->palette_bar_rect.y = (float)(WINDOW_HEIGHT - PALETTE_BAR_HEIGHT - 10);
+    ui->palette_bar_rect.w = (float)(WINDOW_WIDTH - 20);
+    ui->palette_bar_rect.h = (float)PALETTE_BAR_HEIGHT;
 
     // Initialize palette swatches (16 colors in a row)
-    int swatch_spacing = (ui->palette_bar_rect.w - 20) / 16;
+    int swatch_spacing = ((int)ui->palette_bar_rect.w - 20) / 16;
     for (int i = 0; i < 16; i++) {
-        ui->palette_swatches[i].x = ui->palette_bar_rect.x + 10 + i * swatch_spacing;
-        ui->palette_swatches[i].y = ui->palette_bar_rect.y + 10;
-        ui->palette_swatches[i].w = PALETTE_SWATCH_SIZE;
-        ui->palette_swatches[i].h = PALETTE_SWATCH_SIZE;
+        SDL_FRect swatch_bounds = {(float)(ui->palette_bar_rect.x + 10 + i * swatch_spacing),
+                                   ui->palette_bar_rect.y + 10.0f, (float)PALETTE_SWATCH_SIZE,
+                                   (float)PALETTE_SWATCH_SIZE};
+        ui_input_init(&ui->palette_swatches[i], PALETTE_ID_BASE + i, swatch_bounds);
+        ui_input_set_callbacks(&ui->palette_swatches[i], ui_on_palette_click, NULL, ui);
     }
 
     ui->selected_palette_index = 1;  // Start with palette index 1 (not black)
-    ui->hover_palette_index = -1;
+    ui_sync_palette_selection(ui);
 
-    // Initialize buttons
+    // Initialize action buttons
     int button_y = 10;
     int button_spacing = BUTTON_WIDTH + 10;
 
-    // Save button
-    ui->save_button.rect.x = 10;
-    ui->save_button.rect.y = button_y;
-    ui->save_button.rect.w = BUTTON_WIDTH;
-    ui->save_button.rect.h = BUTTON_HEIGHT;
+    ui_input_init(&ui->save_button.input, ACTION_ID_SAVE,
+                  (SDL_FRect){10.0f, (float)button_y, (float)BUTTON_WIDTH, (float)BUTTON_HEIGHT});
     strcpy(ui->save_button.text, "Save (S)");
-    ui->save_button.pressed = false;
-    ui->save_button.hovered = false;
+    ui_input_set_callbacks(&ui->save_button.input, ui_on_action_click, NULL, ui);
 
-    // Load button
-    ui->load_button.rect.x = 10 + button_spacing;
-    ui->load_button.rect.y = button_y;
-    ui->load_button.rect.w = BUTTON_WIDTH;
-    ui->load_button.rect.h = BUTTON_HEIGHT;
+    ui_input_init(
+        &ui->load_button.input, ACTION_ID_LOAD,
+        (SDL_FRect){(float)(10 + button_spacing), (float)button_y, (float)BUTTON_WIDTH,
+                    (float)BUTTON_HEIGHT});
     strcpy(ui->load_button.text, "Load (L)");
-    ui->load_button.pressed = false;
-    ui->load_button.hovered = false;
+    ui_input_set_callbacks(&ui->load_button.input, ui_on_action_click, NULL, ui);
 
-    // New button
-    ui->new_button.rect.x = 10 + button_spacing * 2;
-    ui->new_button.rect.y = button_y;
-    ui->new_button.rect.w = BUTTON_WIDTH;
-    ui->new_button.rect.h = BUTTON_HEIGHT;
+    ui_input_init(
+        &ui->new_button.input, ACTION_ID_NEW,
+        (SDL_FRect){(float)(10 + button_spacing * 2), (float)button_y, (float)BUTTON_WIDTH,
+                    (float)BUTTON_HEIGHT});
     strcpy(ui->new_button.text, "New");
-    ui->new_button.pressed = false;
-    ui->new_button.hovered = false;
+    ui_input_set_callbacks(&ui->new_button.input, ui_on_action_click, NULL, ui);
 
-    // Quit button
-    ui->quit_button.rect.x = 10 + button_spacing * 3;
-    ui->quit_button.rect.y = button_y;
-    ui->quit_button.rect.w = BUTTON_WIDTH;
-    ui->quit_button.rect.h = BUTTON_HEIGHT;
+    ui_input_init(
+        &ui->quit_button.input, ACTION_ID_QUIT,
+        (SDL_FRect){(float)(10 + button_spacing * 3), (float)button_y, (float)BUTTON_WIDTH,
+                    (float)BUTTON_HEIGHT});
     strcpy(ui->quit_button.text, "Quit (ESC)");
-    ui->quit_button.pressed = false;
-    ui->quit_button.hovered = false;
+    ui_input_set_callbacks(&ui->quit_button.input, ui_on_action_click, NULL, ui);
 
     // Initialize status
     strcpy(ui->status_text, "Tile Maker Ready");
     ui->dirty_indicator = false;
-
-    // Initialize font texture (placeholder)
     ui->font_texture = NULL;
 
     // Initialize double-click tracking
@@ -83,10 +143,19 @@ bool ui_init(UIState* ui, SDL_Renderer* renderer) {
 
     // Initialize quit confirmation dialog
     ui->show_quit_dialog = false;
-    ui->quit_yes_button.rect = (SDL_FRect){WINDOW_WIDTH / 2 - 110, WINDOW_HEIGHT / 2, 100, 40};
+    ui_input_init(&ui->quit_yes_button.input, DIALOG_ID_YES,
+                  (SDL_FRect){(float)(WINDOW_WIDTH / 2 - 110), (float)(WINDOW_HEIGHT / 2), 100.0f,
+                              40.0f});
     strcpy(ui->quit_yes_button.text, "Yes");
-    ui->quit_no_button.rect = (SDL_FRect){WINDOW_WIDTH / 2 + 10, WINDOW_HEIGHT / 2, 100, 40};
+    ui_input_set_callbacks(&ui->quit_yes_button.input, ui_on_dialog_click, NULL, ui);
+
+    ui_input_init(&ui->quit_no_button.input, DIALOG_ID_NO,
+                  (SDL_FRect){(float)(WINDOW_WIDTH / 2 + 10), (float)(WINDOW_HEIGHT / 2), 100.0f,
+                              40.0f});
     strcpy(ui->quit_no_button.text, "No");
+    ui_input_set_callbacks(&ui->quit_no_button.input, ui_on_dialog_click, NULL, ui);
+
+    ui->pending_action = 0;
 
     printf("UI initialized\n");
     return true;
@@ -111,14 +180,9 @@ void ui_cleanup(UIState* ui) {
  * Update UI state
  */
 void ui_update(UIState* ui, SDL_Renderer* renderer) {
-    if (!ui || !renderer)
+    (void)renderer;
+    if (!ui)
         return;
-
-    // Reset button states
-    ui->save_button.pressed = false;
-    ui->load_button.pressed = false;
-    ui->new_button.pressed = false;
-    ui->quit_button.pressed = false;
 }
 
 /**
@@ -137,31 +201,30 @@ void ui_render(UIState* ui, SDL_Renderer* renderer) {
 
     // Render palette swatches
     for (int i = 0; i < 16; i++) {
+        UIInputElement* swatch = &ui->palette_swatches[i];
         SDL_Color color = palette_get_sdl_color(i);
         SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-        SDL_RenderFillRect(renderer, &ui->palette_swatches[i]);
+        SDL_RenderFillRect(renderer, &swatch->bounds);
 
-        // Draw swatch border
-        if (i == ui->selected_palette_index) {
-            // Selected swatch gets white border
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-            SDL_RenderRect(renderer, &ui->palette_swatches[i]);
+        if (swatch->selected_anim_t > 0.01f) {
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255,
+                                   (Uint8)(160 + 95 * swatch->selected_anim_t));
+            SDL_RenderRect(renderer, &swatch->bounds);
 
-            // Double border for emphasis
-            SDL_FRect outer_rect = ui->palette_swatches[i];
-            outer_rect.x -= 1;
-            outer_rect.y -= 1;
-            outer_rect.w += 2;
-            outer_rect.h += 2;
+            SDL_FRect outer_rect = swatch->bounds;
+            int expand = 1 + (int)(swatch->selected_anim_t * 2.0f);
+            outer_rect.x -= (float)expand;
+            outer_rect.y -= (float)expand;
+            outer_rect.w += (float)(expand * 2);
+            outer_rect.h += (float)(expand * 2);
             SDL_RenderRect(renderer, &outer_rect);
-        } else if (i == ui->hover_palette_index) {
-            // Hovered swatch gets light gray border
-            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
-            SDL_RenderRect(renderer, &ui->palette_swatches[i]);
+        } else if (swatch->hover_anim_t > 0.01f) {
+            SDL_SetRenderDrawColor(renderer, 200, 200, 200,
+                                   (Uint8)(120 + 100 * swatch->hover_anim_t));
+            SDL_RenderRect(renderer, &swatch->bounds);
         } else {
-            // Normal swatch gets dark gray border
             SDL_SetRenderDrawColor(renderer, 96, 96, 96, 255);
-            SDL_RenderRect(renderer, &ui->palette_swatches[i]);
+            SDL_RenderRect(renderer, &swatch->bounds);
         }
     }
 
@@ -178,7 +241,7 @@ void ui_render(UIState* ui, SDL_Renderer* renderer) {
     // Render dirty indicator
     if (ui->dirty_indicator) {
         SDL_SetRenderDrawColor(renderer, 255, 200, 0, 255);
-        SDL_FRect dirty_rect = {WINDOW_WIDTH - 30, 10, 20, 20};
+        SDL_FRect dirty_rect = {WINDOW_WIDTH - 30.0f, 10.0f, 20.0f, 20.0f};
         SDL_RenderFillRect(renderer, &dirty_rect);
 
         render_text(renderer, "*", WINDOW_WIDTH - 25, 15, text_color);
@@ -186,14 +249,15 @@ void ui_render(UIState* ui, SDL_Renderer* renderer) {
 
     // Render quit confirmation dialog
     if (ui->show_quit_dialog) {
-        SDL_FRect dialog_rect = {WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 - 50, 300, 120};
+        SDL_FRect dialog_rect = {(float)(WINDOW_WIDTH / 2 - 150), (float)(WINDOW_HEIGHT / 2 - 50),
+                                 300.0f, 120.0f};
         SDL_SetRenderDrawColor(renderer, 30, 30, 30, 230);
         SDL_RenderFillRect(renderer, &dialog_rect);
         SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
         SDL_RenderRect(renderer, &dialog_rect);
 
-        render_text(renderer, "Unsaved changes! Quit?", dialog_rect.x + 10, dialog_rect.y + 10,
-                    (SDL_Color){255, 255, 255, 255});
+        render_text(renderer, "Unsaved changes! Quit?", (int)dialog_rect.x + 10,
+                    (int)dialog_rect.y + 10, (SDL_Color){255, 255, 255, 255});
         render_button(renderer, &ui->quit_yes_button);
         render_button(renderer, &ui->quit_no_button);
     }
@@ -206,72 +270,67 @@ int ui_handle_mouse(UIState* ui, int mouse_x, int mouse_y, bool clicked, int but
     if (!ui)
         return 0;
 
-    // Reset hover states
-    ui->hover_palette_index = -1;
-    ui->save_button.hovered = false;
-    ui->load_button.hovered = false;
-    ui->new_button.hovered = false;
-    ui->quit_button.hovered = false;
+    const bool left_click = clicked && button == SDL_BUTTON_LEFT;
+    const float dt_seconds = 1.0f / 60.0f;
+    ui->pending_action = 0;
 
-    // Handle quit dialog input
     if (ui->show_quit_dialog) {
-        if (point_in_rect(mouse_x, mouse_y, &ui->quit_yes_button.rect)) {
-            if (clicked)
-                return 5;  // Quit confirmed
+        for (int i = 0; i < 16; i++) {
+            ui_input_set_enabled(&ui->palette_swatches[i], false);
+            ui_input_update(&ui->palette_swatches[i], dt_seconds, (float)mouse_x, (float)mouse_y,
+                            false, false, false);
         }
-        if (point_in_rect(mouse_x, mouse_y, &ui->quit_no_button.rect)) {
-            if (clicked)
-                ui->show_quit_dialog = false;
-        }
-        return 0;  // Absorb input
+
+        ui_input_set_enabled(&ui->save_button.input, false);
+        ui_input_update(&ui->save_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, false,
+                        false, false);
+        ui_input_set_enabled(&ui->load_button.input, false);
+        ui_input_update(&ui->load_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, false,
+                        false, false);
+        ui_input_set_enabled(&ui->new_button.input, false);
+        ui_input_update(&ui->new_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, false,
+                        false, false);
+        ui_input_set_enabled(&ui->quit_button.input, false);
+        ui_input_update(&ui->quit_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, false,
+                        false, false);
+
+        ui_input_set_enabled(&ui->quit_yes_button.input, true);
+        ui_input_update(&ui->quit_yes_button.input, dt_seconds, (float)mouse_x, (float)mouse_y,
+                        left_click, left_click, left_click);
+
+        ui_input_set_enabled(&ui->quit_no_button.input, true);
+        ui_input_update(&ui->quit_no_button.input, dt_seconds, (float)mouse_x, (float)mouse_y,
+                        left_click, left_click, left_click);
+
+        return ui->pending_action;
     }
 
-    // Check palette swatches
     for (int i = 0; i < 16; i++) {
-        if (point_in_rect(mouse_x, mouse_y, &ui->palette_swatches[i])) {
-            ui->hover_palette_index = i;
-            if (clicked && button == 1) {  // Left click
-                ui->selected_palette_index = i;
-                return 10 + i;  // Return palette selection code
-            }
-            break;
-        }
+        ui_input_set_enabled(&ui->palette_swatches[i], true);
+        ui_input_update(&ui->palette_swatches[i], dt_seconds, (float)mouse_x, (float)mouse_y,
+                        left_click, left_click, left_click);
     }
 
-    // Check buttons
-    if (point_in_rect(mouse_x, mouse_y, &ui->save_button.rect)) {
-        ui->save_button.hovered = true;
-        if (clicked && button == 1) {
-            ui->save_button.pressed = true;
-            return 1;  // Save action
-        }
-    }
+    ui_input_set_enabled(&ui->save_button.input, true);
+    ui_input_update(&ui->save_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, left_click,
+                    left_click, left_click);
 
-    if (point_in_rect(mouse_x, mouse_y, &ui->load_button.rect)) {
-        ui->load_button.hovered = true;
-        if (clicked && button == 1) {
-            ui->load_button.pressed = true;
-            return 2;  // Load action
-        }
-    }
+    ui_input_set_enabled(&ui->load_button.input, true);
+    ui_input_update(&ui->load_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, left_click,
+                    left_click, left_click);
 
-    if (point_in_rect(mouse_x, mouse_y, &ui->new_button.rect)) {
-        ui->new_button.hovered = true;
-        if (clicked && button == 1) {
-            ui->new_button.pressed = true;
-            return 3;  // New action
-        }
-    }
+    ui_input_set_enabled(&ui->new_button.input, true);
+    ui_input_update(&ui->new_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, left_click,
+                    left_click, left_click);
 
-    if (point_in_rect(mouse_x, mouse_y, &ui->quit_button.rect)) {
-        ui->quit_button.hovered = true;
-        if (clicked && button == 1) {
-            ui->quit_button.pressed = true;
-            return 4;  // Quit action
-        }
-    }
+    ui_input_set_enabled(&ui->quit_button.input, true);
+    ui_input_update(&ui->quit_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, left_click,
+                    left_click, left_click);
 
-    return 0;  // No action
+    ui_input_set_enabled(&ui->quit_yes_button.input, false);
+    ui_input_set_enabled(&ui->quit_no_button.input, false);
+
+    return ui->pending_action;
 }
 
 /**
@@ -283,6 +342,7 @@ void ui_set_palette_selection(UIState* ui, int index) {
 
     if (index >= 0 && index < 16) {
         ui->selected_palette_index = index;
+        ui_sync_palette_selection(ui);
     }
 }
 
@@ -326,7 +386,7 @@ bool ui_check_double_click(UIState* ui, int tile_id) {
     bool is_double_click = false;
 
     if (ui->last_clicked_tile == tile_id &&
-        (current_time - ui->last_click_time) < 500) {  // 500ms double-click threshold
+        (current_time - ui->last_click_time) < DOUBLE_CLICK_THRESHOLD_MS) {
         is_double_click = true;
     }
 
@@ -336,30 +396,37 @@ bool ui_check_double_click(UIState* ui, int tile_id) {
     return is_double_click;
 }
 
+static int ui_text_width(const char* text) {
+    if (!text) {
+        return 0;
+    }
+
+    int len = (int)strlen(text);
+    if (len <= 0) {
+        return 0;
+    }
+
+    return len * 6 - 1;
+}
+
 /**
  * Render a simple filled rectangle button
  */
-void render_button(SDL_Renderer* renderer, const UIButton* button) {
+static void render_button(SDL_Renderer* renderer, const UIButton* button) {
     if (!renderer || !button)
         return;
 
-    // Button background
-    if (button->pressed) {
-        SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
-    } else if (button->hovered) {
-        SDL_SetRenderDrawColor(renderer, 80, 80, 80, 255);
-    } else {
-        SDL_SetRenderDrawColor(renderer, 60, 60, 60, 255);
-    }
-    SDL_RenderFillRect(renderer, &button->rect);
+    SDL_Color base = {60, 60, 60, 255};
+    SDL_Color hover = {82, 82, 82, 255};
+    SDL_Color border = {128, 128, 128, 255};
 
-    // Button border
-    SDL_SetRenderDrawColor(renderer, 128, 128, 128, 255);
-    SDL_RenderRect(renderer, &button->rect);
+    ui_input_widgets_render_button(renderer, &button->input, base, hover, border, 0.85f);
 
-    // Button text (simple)
     SDL_Color text_color = {255, 255, 255, 255};
-    render_text(renderer, button->text, button->rect.x + 5, button->rect.y + 8, text_color);
+    int text_x =
+        (int)(button->input.bounds.x + (button->input.bounds.w - (float)ui_text_width(button->text)) * 0.5f);
+    int text_y = (int)(button->input.bounds.y + (button->input.bounds.h - 7.0f) * 0.5f);
+    render_text(renderer, button->text, text_x, text_y, text_color);
 }
 
 /* ----------------------------------------------------------------
@@ -527,7 +594,8 @@ void render_text(SDL_Renderer* renderer, const char* text, int x, int y, SDL_Col
     int len = (int)strlen(text);
     for (int i = 0; i < len && i < 32; i++) {
         int char_index = get_char_index(text[i]);
-        const uint8_t* pattern = font_patterns[char_index < 52 ? char_index : 0];
+        const uint8_t* pattern =
+            font_patterns[(char_index >= 0 && char_index < GLYPH_COUNT) ? char_index : 0];
 
         // Draw character using bitmap pattern
         for (int row = 0; row < 7; row++) {
@@ -539,14 +607,4 @@ void render_text(SDL_Renderer* renderer, const char* text, int x, int y, SDL_Col
             }
         }
     }
-}
-
-/**
- * Check if point is inside rectangle
- */
-bool point_in_rect(int x, int y, const SDL_FRect* rect) {
-    if (!rect)
-        return false;
-
-    return (x >= rect->x && x < rect->x + rect->w && y >= rect->y && y < rect->y + rect->h);
 }

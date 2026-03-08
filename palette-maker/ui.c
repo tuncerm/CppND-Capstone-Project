@@ -287,6 +287,7 @@ static void ui_update_inputs(UIState* ui, float dt_seconds, bool mouse_pressed, 
     }
 
     const bool interaction_enabled = !ui->show_save_dialog && !ui->color_picker_open;
+    const bool rgba_enabled = !ui->show_save_dialog;
     const bool dialog_enabled = ui->show_save_dialog;
 
     for (int i = 0; i < UI_ACTION_BUTTON_COUNT; i++) {
@@ -302,7 +303,7 @@ static void ui_update_inputs(UIState* ui, float dt_seconds, bool mouse_pressed, 
     }
 
     for (int i = 0; i < UI_RGBA_BUTTON_COUNT; i++) {
-        ui_input_set_enabled(&ui->rgba_buttons[i], interaction_enabled);
+        ui_input_set_enabled(&ui->rgba_buttons[i], rgba_enabled);
         ui_input_update(&ui->rgba_buttons[i], dt_seconds, ui->mouse_x, ui->mouse_y, ui->mouse_down,
                         mouse_pressed, mouse_released);
     }
@@ -452,15 +453,11 @@ static void ui_window_to_logical_coords(UIState* ui, const AppConfig* config, fl
  */
 static bool ui_handle_mouse_click(UIState* ui, Palette* palette, float mouse_x, float mouse_y,
                                   const AppConfig* config) {
+    (void)ui;
     (void)palette;
     (void)mouse_x;
     (void)mouse_y;
     (void)config;
-
-    if (ui->color_picker_open) {
-        // If a dialog is open, don't process background clicks
-        return true;
-    }
 
     return false;
 }

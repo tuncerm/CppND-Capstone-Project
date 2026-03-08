@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 #include "../shared/config/config_manager.h"
+#include "../shared/ui_framework/ui_input.h"
 
 #include "constants.h"
 
@@ -16,10 +17,8 @@
  * UI button structure
  */
 typedef struct {
-    SDL_FRect rect;
+    UIInputElement input;
     char text[32];
-    bool pressed;
-    bool hovered;
 } UIButton;
 
 /**
@@ -28,9 +27,8 @@ typedef struct {
 typedef struct {
     // Palette bar
     SDL_FRect palette_bar_rect;
-    SDL_FRect palette_swatches[16];
+    UIInputElement palette_swatches[16];
     int selected_palette_index;
-    int hover_palette_index;
 
     // Buttons
     UIButton save_button;
@@ -53,6 +51,9 @@ typedef struct {
     bool show_quit_dialog;
     UIButton quit_yes_button;
     UIButton quit_no_button;
+
+    // One-frame action emitted from UI callbacks
+    int pending_action;
 } UIState;
 
 /**
@@ -146,14 +147,6 @@ void ui_set_dirty(UIState* ui, bool dirty);
 bool ui_check_double_click(UIState* ui, int tile_id);
 
 /**
- * Render a simple filled rectangle button
- *
- * @param renderer SDL renderer
- * @param button Pointer to button structure
- */
-void render_button(SDL_Renderer* renderer, const UIButton* button);
-
-/**
  * Render simple text (basic implementation)
  *
  * @param renderer SDL renderer
@@ -163,15 +156,5 @@ void render_button(SDL_Renderer* renderer, const UIButton* button);
  * @param color Text color
  */
 void render_text(SDL_Renderer* renderer, const char* text, int x, int y, SDL_Color color);
-
-/**
- * Check if point is inside rectangle
- *
- * @param x Point x coordinate
- * @param y Point y coordinate
- * @param rect Rectangle to test
- * @return true if point is inside rectangle, false otherwise
- */
-bool point_in_rect(int x, int y, const SDL_FRect* rect);
 
 #endif  // UI_H
