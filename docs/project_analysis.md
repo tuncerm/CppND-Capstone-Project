@@ -31,9 +31,8 @@ Validation snapshot after these updates:
 - Tests: `ctest --output-on-failure` passes at build root (`204/204`)
 
 ## Remaining recommendations (non-blocking)
-- Keep reducing compile warnings (constructor init-order warnings and test warning noise).
-- Consider splitting CI jobs by target family (`PlayGame`, `PaletteMaker`, `TileMaker`, `shared`).
-- Add optional stricter linting profile for PRs once warning volume is reduced.
+- Keep monitoring warning drift as code evolves.
+- Review strict cppcheck PR output periodically and promote stable rules to blocking checks.
 
 ## Follow-up Analysis (2026-03-08)
 
@@ -42,52 +41,23 @@ Validation snapshot after these updates:
 - Tests: `ctest --output-on-failure` passes at build root (`204/204`).
 - Working tree note: `palette.dat` remains locally modified (data file only).
 
-### New findings (post-remediation)
+### Findings closure update
 
-1. Path resolution is still relative-path based and can remain launch-directory sensitive.
-   - Files:
-     - `src/path_resolver.cpp:31-45`
-   - Detail:
-     - Resolver still tries `"config/...`, `"../config/..."`, and local names.
-     - This improves resiliency but does not fully anchor to executable/base path.
-   - Impact:
-     - Running binaries from unexpected working directories can still resolve unintended files.
+Follow-up findings from the same date are now implemented:
 
-2. Source file is included as implementation (`.cpp` include), which is fragile.
-   - Files:
-     - `src/gamemap.cpp:5` (`#include "tempmap.cpp"`)
-   - Impact:
-     - Tight coupling of translation units and potential ODR/build hygiene issues.
-
-3. Production warning debt remains in core runtime code.
-   - Files:
-     - `src/renderer.h:51-59`
-     - `src/renderer.cpp:12-21`
-     - `src/controller.cpp:19`
-     - `tile-maker/tile_sheet.c:188-190`
-   - Detail:
-     - Constructor member initialization order warnings (`-Wreorder`) in `Renderer`.
-     - Unused parameter warnings (`FireProjectile(Player&)`, `double_clicked`).
-
-4. SDL init check style is inconsistent with SDL3 bool semantics in multiple places.
-   - Files:
-     - `shared/sdl_framework/sdl_context.c:37`
-     - `shared/tests/test_main.cpp:17`
-   - Detail:
-     - Current code uses `SDL_Init(...) < 0`; in SDL3 this is a bool-returning API path in this codebase style.
-   - Impact:
-     - Generates warnings and obscures intent.
-
-5. Test code has C++ standard compatibility and warning noise issues.
-   - Files:
-     - `shared/tests/unit/test_sdl_context.cpp:45-50` (designated initializers under C++17)
-     - `shared/tests/unit/test_palette_manager.cpp:286-290,341-342`
-     - `shared/tests/unit/test_sdl_context.cpp:320`
-     - `shared/tests/unit/test_double_click.cpp:39,182,197,210,220`
-   - Impact:
-     - Avoidable warnings make CI signal noisier and hide meaningful regressions.
+1. Deterministic path resolution was implemented in `src/path_resolver.cpp` using executable/base-path anchored probing with retained fallback behavior.
+2. `tempmap.cpp` include coupling was removed by introducing `src/tempmap.h` and compiling `src/tempmap.cpp` as its own translation unit.
+3. Production warning fixes were applied in `src/renderer.cpp`, `src/controller.cpp`, and `tile-maker/tile_sheet.c`.
+4. SDL init checks were updated to SDL3 bool style in `shared/sdl_framework/sdl_context.c` and `shared/tests/test_main.cpp`.
+5. Test warning cleanup and C++17 compatibility updates were implemented across:
+   - `shared/tests/unit/test_sdl_context.cpp`
+   - `shared/tests/unit/test_palette_manager.cpp`
+   - `shared/tests/unit/test_double_click.cpp`
+6. CI was split by target family in `.github/workflows/ci.yml`, with:
+   - target-matrix build jobs (`PlayGame`, `PaletteMaker`, `TileMaker`)
+   - dedicated shared tests/analysis job
+   - optional non-blocking strict cppcheck profile for pull requests
 
 ### Recommended next focus
-- Prioritize deterministic path anchoring first (`SDL_GetBasePath` / executable-relative resolution).
-- Then clear warning debt in production targets (`Renderer`, SDL init checks, unused params).
-- Finally clean test warning noise and enforce cleaner warning policy in CI.
+- Watch strict cppcheck pull-request output for 1-2 cycles, then promote stable checks from non-blocking to blocking where signal quality is high.
+- Consider adding targeted label/regex filters in `ctest` if future test suites diverge beyond shared components.

@@ -7,7 +7,32 @@ on:
   pull_request:
 
 jobs:
-  build-test-and-analysis:
+  build-targets:
+    name: build-${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - PlayGame
+          - PaletteMaker
+          - TileMaker
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libsdl3-dev
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build target
+        run: cmake --build build --target ${{ matrix.target }}
+
+  shared-tests-and-analysis:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,8 +46,8 @@ jobs:
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
-      - name: Build
-        run: cmake --build build
+      - name: Build shared tests
+        run: cmake --build build --target shared_components_tests
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
@@ -34,6 +59,29 @@ jobs:
             --error-exitcode=1 \
             --inline-suppr \
             --suppress=missingIncludeSystem \
+            src shared palette-maker tile-maker
+
+  strict-cppcheck:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cppcheck
+
+      - name: Cppcheck (strict profile, non-blocking)
+        run: |
+          cppcheck \
+            --enable=all \
+            --error-exitcode=1 \
+            --inline-suppr \
+            --suppress=missingIncludeSystem \
+            --suppress=unusedFunction \
             src shared palette-maker tile-maker
 
   sanitizer-debug:
