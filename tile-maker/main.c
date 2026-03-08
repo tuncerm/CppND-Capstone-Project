@@ -5,6 +5,7 @@
 
 #include "../shared/config/config_manager.h"
 #include "../shared/error_handler/error_handler.h"
+#include "../shared/ui_framework/ui_viewport.h"
 #include "palette_io.h"
 #include "pixel_editor.h"
 #include "tile_sheet.h"
@@ -167,6 +168,11 @@ bool app_init(AppState* app) {
         return false;
     }
 
+    if (!SDL_SetRenderLogicalPresentation(app->renderer, WINDOW_WIDTH, WINDOW_HEIGHT,
+                                          SDL_LOGICAL_PRESENTATION_LETTERBOX)) {
+        printf("Warning: Failed to set logical presentation: %s\n", SDL_GetError());
+    }
+
     // Initialize input state
     memset(app->keys, 0, sizeof(app->keys));
     memset(app->mouse_buttons, 0, sizeof(app->mouse_buttons));
@@ -256,11 +262,25 @@ void app_handle_events(AppState* app) {
                 break;
 
             case SDL_EVENT_MOUSE_MOTION:
-                app->mouse_x = (int)event.motion.x;
-                app->mouse_y = (int)event.motion.y;
+                {
+                    float logical_x = event.motion.x;
+                    float logical_y = event.motion.y;
+                    ui_viewport_window_to_logical(app->renderer, event.motion.x, event.motion.y,
+                                                  &logical_x, &logical_y);
+                    app->mouse_x = (int)logical_x;
+                    app->mouse_y = (int)logical_y;
+                }
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                {
+                    float logical_x = event.button.x;
+                    float logical_y = event.button.y;
+                    ui_viewport_window_to_logical(app->renderer, event.button.x, event.button.y,
+                                                  &logical_x, &logical_y);
+                    app->mouse_x = (int)logical_x;
+                    app->mouse_y = (int)logical_y;
+                }
                 if (event.button.button < MOUSE_BUTTON_LIMIT) {
                     app->mouse_buttons[event.button.button] = true;
                     app->mouse_clicked[event.button.button] = true;
@@ -268,6 +288,14 @@ void app_handle_events(AppState* app) {
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_UP:
+                {
+                    float logical_x = event.button.x;
+                    float logical_y = event.button.y;
+                    ui_viewport_window_to_logical(app->renderer, event.button.x, event.button.y,
+                                                  &logical_x, &logical_y);
+                    app->mouse_x = (int)logical_x;
+                    app->mouse_y = (int)logical_y;
+                }
                 if (event.button.button < MOUSE_BUTTON_LIMIT) {
                     app->mouse_buttons[event.button.button] = false;
                 }

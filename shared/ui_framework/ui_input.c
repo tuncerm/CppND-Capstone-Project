@@ -47,6 +47,8 @@ void ui_input_init(UIInputElement* element, int id, SDL_FRect bounds) {
 
     element->on_click = 0;
     element->on_change = 0;
+    element->on_hover = 0;
+    element->on_selected = 0;
     element->userdata = 0;
 }
 
@@ -61,6 +63,16 @@ void ui_input_set_callbacks(UIInputElement* element, UIInputOnClick on_click,
     element->userdata = userdata;
 }
 
+void ui_input_set_state_callbacks(UIInputElement* element, UIInputOnHover on_hover,
+                                  UIInputOnSelected on_selected) {
+    if (!element) {
+        return;
+    }
+
+    element->on_hover = on_hover;
+    element->on_selected = on_selected;
+}
+
 void ui_input_set_enabled(UIInputElement* element, bool enabled) {
     if (!element) {
         return;
@@ -68,6 +80,9 @@ void ui_input_set_enabled(UIInputElement* element, bool enabled) {
 
     element->enabled = enabled;
     if (!enabled) {
+        if (element->hovered && element->on_hover) {
+            element->on_hover(element->id, false, element->userdata);
+        }
         element->hovered = false;
         element->pressed = false;
     }
@@ -77,7 +92,13 @@ void ui_input_set_selected(UIInputElement* element, bool selected) {
     if (!element) {
         return;
     }
+    if (element->selected == selected) {
+        return;
+    }
     element->selected = selected;
+    if (element->on_selected) {
+        element->on_selected(element->id, selected, element->userdata);
+    }
 }
 
 void ui_input_set_value(UIInputElement* element, float value) {
@@ -108,9 +129,13 @@ bool ui_input_update(UIInputElement* element, float dt_seconds, float mouse_x, f
     }
 
     const bool contains_mouse = ui_input_contains(element, mouse_x, mouse_y);
+    const bool was_hovered = element->hovered;
     bool clicked = false;
 
     element->hovered = contains_mouse;
+    if (was_hovered != element->hovered && element->on_hover) {
+        element->on_hover(element->id, element->hovered, element->userdata);
+    }
 
     if (mouse_pressed && contains_mouse) {
         element->pressed = true;

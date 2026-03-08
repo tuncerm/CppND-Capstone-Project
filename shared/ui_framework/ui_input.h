@@ -10,6 +10,8 @@ extern "C" {
 
 typedef void (*UIInputOnClick)(int id, void* userdata);
 typedef void (*UIInputOnChange)(int id, float value, void* userdata);
+typedef void (*UIInputOnHover)(int id, bool hovered, void* userdata);
+typedef void (*UIInputOnSelected)(int id, bool selected, void* userdata);
 
 typedef struct {
     int id;
@@ -29,12 +31,16 @@ typedef struct {
 
     UIInputOnClick on_click;
     UIInputOnChange on_change;
+    UIInputOnHover on_hover;
+    UIInputOnSelected on_selected;
     void* userdata;
 } UIInputElement;
 
 void ui_input_init(UIInputElement* element, int id, SDL_FRect bounds);
 void ui_input_set_callbacks(UIInputElement* element, UIInputOnClick on_click,
                             UIInputOnChange on_change, void* userdata);
+void ui_input_set_state_callbacks(UIInputElement* element, UIInputOnHover on_hover,
+                                  UIInputOnSelected on_selected);
 void ui_input_set_enabled(UIInputElement* element, bool enabled);
 void ui_input_set_selected(UIInputElement* element, bool selected);
 void ui_input_set_value(UIInputElement* element, float value);
