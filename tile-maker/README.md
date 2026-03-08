@@ -15,7 +15,7 @@ A powerful 8x8 pixel tile editor built with SDL3, designed for creating retro-st
 
 ## Window Layout
 
-The application features a clean, organized layout (~900×600 pixels):
+The application features a clean, organized layout (~560×390 pixels):
 
 - **Tile Sheet Panel** (Left, 256×256px): Visual atlas of all 64 tiles at 4× magnification
 - **Pixel Editor** (Center, 256×256px): Magnified view of selected tile (32px per pixel)

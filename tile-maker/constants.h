@@ -2,8 +2,8 @@
 #define TILE_MAKER_CONSTANTS_H
 
 // Window dimensions
-#define WINDOW_WIDTH 900
-#define WINDOW_HEIGHT 600
+#define WINDOW_WIDTH 560
+#define WINDOW_HEIGHT 390
 
 // UI layout
 #define PALETTE_BAR_HEIGHT 40

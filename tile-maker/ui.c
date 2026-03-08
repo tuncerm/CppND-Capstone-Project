@@ -13,6 +13,10 @@
 #define ACTION_ID_QUIT 2004
 #define DIALOG_ID_YES 3001
 #define DIALOG_ID_NO 3002
+#define PALETTE_SWATCH_COLUMNS 16
+#define PALETTE_SWATCH_ROWS 1
+#define PALETTE_PANEL_PADDING 8
+#define PALETTE_SWATCH_GAP 6
 
 static void render_button(UIState* ui, const UIButton* button);
 static void render_text(UIState* ui, const char* text, int x, int y, SDL_Color color);
@@ -84,18 +88,29 @@ bool ui_init(UIState* ui, SDL_Renderer* renderer) {
 
     memset(ui, 0, sizeof(*ui));
 
-    // Initialize palette bar
+    // Initialize compact palette panel (single-row swatches).
+    const int palette_panel_w = PALETTE_PANEL_PADDING * 2 +
+                                PALETTE_SWATCH_COLUMNS * PALETTE_SWATCH_SIZE +
+                                (PALETTE_SWATCH_COLUMNS - 1) * PALETTE_SWATCH_GAP;
+    const int palette_panel_h =
+        PALETTE_PANEL_PADDING * 2 + PALETTE_SWATCH_ROWS * PALETTE_SWATCH_SIZE +
+        (PALETTE_SWATCH_ROWS - 1) * PALETTE_SWATCH_GAP;
     ui->palette_bar_rect.x = 10.0f;
-    ui->palette_bar_rect.y = (float)(WINDOW_HEIGHT - PALETTE_BAR_HEIGHT - 10);
-    ui->palette_bar_rect.w = (float)(WINDOW_WIDTH - 20);
-    ui->palette_bar_rect.h = (float)PALETTE_BAR_HEIGHT;
+    ui->palette_bar_rect.y = (float)(WINDOW_HEIGHT - palette_panel_h - 10);
+    ui->palette_bar_rect.w = (float)palette_panel_w;
+    ui->palette_bar_rect.h = (float)palette_panel_h;
 
-    // Initialize palette swatches (16 colors in a row)
-    int swatch_spacing = ((int)ui->palette_bar_rect.w - 20) / 16;
+    // Initialize palette swatches in a single row.
     for (int i = 0; i < 16; i++) {
-        SDL_FRect swatch_bounds = {(float)(ui->palette_bar_rect.x + 10 + i * swatch_spacing),
-                                   ui->palette_bar_rect.y + 10.0f, (float)PALETTE_SWATCH_SIZE,
-                                   (float)PALETTE_SWATCH_SIZE};
+        const int row = i / PALETTE_SWATCH_COLUMNS;
+        const int col = i % PALETTE_SWATCH_COLUMNS;
+        SDL_FRect swatch_bounds = {
+            (float)(ui->palette_bar_rect.x + PALETTE_PANEL_PADDING +
+                    col * (PALETTE_SWATCH_SIZE + PALETTE_SWATCH_GAP)),
+            (float)(ui->palette_bar_rect.y + PALETTE_PANEL_PADDING +
+                    row * (PALETTE_SWATCH_SIZE + PALETTE_SWATCH_GAP)),
+            (float)PALETTE_SWATCH_SIZE,
+            (float)PALETTE_SWATCH_SIZE};
         ui_input_init_clickable(&ui->palette_swatches[i], PALETTE_ID_BASE + i, swatch_bounds,
                                 ui_on_palette_click, ui);
     }
@@ -232,9 +247,13 @@ void ui_render(UIState* ui, SDL_Renderer* renderer) {
     render_button(ui, &ui->new_button);
     render_button(ui, &ui->quit_button);
 
-    // Render status text
+    // Render status text above the palette panel.
     SDL_Color text_color = {255, 255, 255, 255};
-    render_text(ui, ui->status_text, 10, WINDOW_HEIGHT - 80, text_color);
+    int status_y = (int)ui->palette_bar_rect.y - 18;
+    if (status_y < BUTTON_HEIGHT + 20) {
+        status_y = BUTTON_HEIGHT + 20;
+    }
+    render_text(ui, ui->status_text, 10, status_y, text_color);
 
     // Render dirty indicator
     if (ui->dirty_indicator) {

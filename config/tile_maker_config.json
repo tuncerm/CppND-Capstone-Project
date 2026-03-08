@@ -5,8 +5,8 @@
     "version": "1.0"
   },
   "display": {
-    "window_width": 900,
-    "window_height": 600,
+    "window_width": 560,
+    "window_height": 390,
     "window_title": "Tile Maker v1.0 - SDL3 Edition"
   },
   "ui": {

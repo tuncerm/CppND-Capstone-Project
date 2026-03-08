@@ -33,8 +33,8 @@ This file contains constants for the `tile-maker` utility.
 
 | Constant | Value | Description |
 |---|---|---|
-| `WINDOW_WIDTH` | 900 | The width of the tile-maker window. |
-| `WINDOW_HEIGHT` | 600 | The height of the tile-maker window. |
+| `WINDOW_WIDTH` | 560 | The width of the tile-maker window. |
+| `WINDOW_HEIGHT` | 390 | The height of the tile-maker window. |
 | `PALETTE_BAR_HEIGHT` | 40 | The height of the palette bar in the UI. |
 | `BUTTON_WIDTH` | 80 | The width of UI buttons. |
 | `BUTTON_HEIGHT` | 30 | The height of UI buttons. |
