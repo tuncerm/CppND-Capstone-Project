@@ -10,6 +10,15 @@ bool sdl_init_context(SDLContext* ctx, const SDLContextConfig* config) {
         return false;
     }
 
+    if (config->width <= 0 || config->height <= 0) {
+        return false;
+    }
+
+    // Replace any existing context cleanly.
+    if (sdl_context_is_ready(ctx)) {
+        sdl_cleanup_context(ctx);
+    }
+
     // Initialize context structure
     memset(ctx, 0, sizeof(SDLContext));
     ctx->width = config->width;
@@ -41,7 +50,6 @@ bool sdl_init_context(SDLContext* ctx, const SDLContextConfig* config) {
     ctx->window = SDL_CreateWindow(ctx->title, ctx->width, ctx->height, window_flags);
     if (!ctx->window) {
         printf("Error: Could not create window: %s\n", SDL_GetError());
-        SDL_Quit();
         return false;
     }
 
@@ -60,7 +68,6 @@ bool sdl_init_context(SDLContext* ctx, const SDLContextConfig* config) {
         if (!ctx->renderer) {
             printf("Error: Could not create default renderer: %s\n", SDL_GetError());
             SDL_DestroyWindow(ctx->window);
-            SDL_Quit();
             return false;
         }
     }
@@ -82,6 +89,10 @@ bool sdl_init_context(SDLContext* ctx, const SDLContextConfig* config) {
  * Initialize SDL context with default configuration
  */
 bool sdl_init_context_simple(SDLContext* ctx, const char* title, int width, int height) {
+    if (!ctx || !title || width <= 0 || height <= 0) {
+        return false;
+    }
+
     SDLContextConfig config = {.title = title,
                                .width = width,
                                .height = height,
@@ -110,10 +121,7 @@ void sdl_cleanup_context(SDLContext* ctx) {
         ctx->window = NULL;
     }
 
-    if (ctx->initialized) {
-        SDL_Quit();
-        ctx->initialized = false;
-    }
+    ctx->initialized = false;
 
     printf("SDL context cleaned up\n");
 }
@@ -188,8 +196,7 @@ bool sdl_set_fullscreen(SDLContext* ctx, bool fullscreen) {
         return false;
     }
 
-    Uint32 flags = fullscreen ? SDL_WINDOW_FULLSCREEN : 0;
-    return SDL_SetWindowFullscreen(ctx->window, flags) == 0;
+    return SDL_SetWindowFullscreen(ctx->window, fullscreen);
 }
 
 /**
@@ -223,8 +230,12 @@ bool sdl_set_logical_presentation(SDLContext* ctx, int width, int height) {
         return false;
     }
 
+    if (width <= 0 || height <= 0) {
+        return false;
+    }
+
     return SDL_SetRenderLogicalPresentation(ctx->renderer, width, height,
-                                            SDL_LOGICAL_PRESENTATION_LETTERBOX) == 0;
+                                            SDL_LOGICAL_PRESENTATION_LETTERBOX);
 }
 
 /**

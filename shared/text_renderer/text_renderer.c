@@ -25,14 +25,22 @@ static const uint8_t seven_segment_patterns[10] = {
  * Initialize text renderer
  */
 bool text_renderer_init(TextRenderer* tr, SDL_Renderer* renderer) {
-    if (!tr || !renderer) {
+    if (!tr) {
+        return false;
+    }
+
+    // Always reset output state so failed init leaves a safe, queryable object.
+    tr->renderer = NULL;
+    tr->initialized = false;
+    tr->default_color = (SDL_Color){DEFAULT_TEXT_COLOR_R, DEFAULT_TEXT_COLOR_G,
+                                    DEFAULT_TEXT_COLOR_B, DEFAULT_TEXT_COLOR_A};
+
+    if (!renderer) {
         return false;
     }
 
     tr->renderer = renderer;
     tr->initialized = true;
-    tr->default_color = (SDL_Color){DEFAULT_TEXT_COLOR_R, DEFAULT_TEXT_COLOR_G,
-                                    DEFAULT_TEXT_COLOR_B, DEFAULT_TEXT_COLOR_A};  // White default
 
     // Validate font data in debug builds
     font_validate_data();

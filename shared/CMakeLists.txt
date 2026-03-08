@@ -21,6 +21,7 @@ add_library(shared_components STATIC
     ui_framework/ui_input.c
     ui_framework/ui_input_widgets.c
     ui_framework/ui_primitives.c
+    ui_framework/ui_viewport.c
 
     # Palette management
     palette_manager/palette_manager.c

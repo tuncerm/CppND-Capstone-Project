@@ -188,6 +188,10 @@ bool ui_button_has_state(const UIButton* button, UIButtonState state) {
         return false;
     }
 
+    if (state == UI_BUTTON_NORMAL) {
+        return button->state == UI_BUTTON_NORMAL;
+    }
+
     return (button->state & state) != 0;
 }
 
@@ -199,10 +203,20 @@ void ui_button_set_state(UIButton* button, UIButtonState state, bool enabled) {
         return;
     }
 
+    if (state == UI_BUTTON_NORMAL) {
+        if (enabled) {
+            button->state = UI_BUTTON_NORMAL;
+        }
+        return;
+    }
+
     if (enabled) {
         button->state |= state;
     } else {
         button->state &= ~state;
+        if (button->state == 0) {
+            button->state = UI_BUTTON_NORMAL;
+        }
     }
 }
 

@@ -17,6 +17,20 @@
 #define PATH_SEPARATOR_STR "/"
 #endif
 
+static const char* file_find_last_separator(const char* filepath) {
+    const char* last_forward = strrchr(filepath, '/');
+    const char* last_backward = strrchr(filepath, '\\');
+
+    if (!last_forward) {
+        return last_backward;
+    }
+    if (!last_backward) {
+        return last_forward;
+    }
+
+    return (last_forward > last_backward) ? last_forward : last_backward;
+}
+
 /**
  * Check if file exists and is readable
  */
@@ -73,7 +87,7 @@ bool file_get_filename(const char* filepath, char* filename, size_t filename_siz
         return false;
     }
 
-    const char* last_separator = strrchr(filepath, PATH_SEPARATOR);
+    const char* last_separator = file_find_last_separator(filepath);
     const char* name_start = last_separator ? last_separator + 1 : filepath;
 
     size_t name_len = strlen(name_start);
@@ -93,7 +107,7 @@ bool file_get_directory(const char* filepath, char* directory, size_t directory_
         return false;
     }
 
-    const char* last_separator = strrchr(filepath, PATH_SEPARATOR);
+    const char* last_separator = file_find_last_separator(filepath);
     if (!last_separator) {
         // No directory separator, use current directory
         if (directory_size >= 2) {
@@ -122,7 +136,7 @@ bool file_get_extension(const char* filepath, char* extension, size_t extension_
     }
 
     const char* last_dot = strrchr(filepath, '.');
-    const char* last_separator = strrchr(filepath, PATH_SEPARATOR);
+    const char* last_separator = file_find_last_separator(filepath);
 
     // Make sure the dot is after the last path separator (not in directory name)
     if (!last_dot || (last_separator && last_dot < last_separator)) {
@@ -150,7 +164,7 @@ bool file_change_extension(const char* filepath, const char* new_extension, char
     }
 
     const char* last_dot = strrchr(filepath, '.');
-    const char* last_separator = strrchr(filepath, PATH_SEPARATOR);
+    const char* last_separator = file_find_last_separator(filepath);
 
     // Calculate base name length (without extension)
     size_t base_len;
@@ -196,7 +210,7 @@ bool file_join_path(const char* directory, const char* filename, char* output, s
     strcpy(output, directory);
 
     // Add separator if directory doesn't end with one
-    if (dir_len > 0 && directory[dir_len - 1] != PATH_SEPARATOR) {
+    if (dir_len > 0 && directory[dir_len - 1] != '/' && directory[dir_len - 1] != '\\') {
         strcat(output, PATH_SEPARATOR_STR);
     }
 
@@ -213,7 +227,8 @@ bool file_create_backup(const char* filepath) {
     }
 
     char backup_path[MAX_PATH_LENGTH];
-    if (!file_change_extension(filepath, "bak", backup_path, sizeof(backup_path))) {
+    int needed = snprintf(backup_path, sizeof(backup_path), "%s.bak", filepath);
+    if (needed < 0 || (size_t)needed >= sizeof(backup_path)) {
         return false;
     }
 
@@ -385,7 +400,7 @@ bool file_sanitize_filename(const char* filename, char* output, size_t output_si
     }
 
     const char* invalid_chars = "<>:\"|?*";
-    for (size_t i = 0; i <= len; i++) {
+    for (size_t i = 0; i < len; i++) {
         char c = filename[i];
         if (c < MIN_ASCII || strchr(invalid_chars, c)) {
             output[i] = '_';
@@ -393,6 +408,7 @@ bool file_sanitize_filename(const char* filename, char* output, size_t output_si
             output[i] = c;
         }
     }
+    output[len] = '\0';
 
     return true;
 }

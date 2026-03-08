@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "ui_input_widgets.h"
+#include "ui_viewport.h"
 
 // Double-click detection threshold (milliseconds)
 #define DOUBLE_CLICK_TIME 300
@@ -397,68 +398,14 @@ void ui_cleanup(UIState* ui) {
  * Get UI scale factor for mouse coordinates
  */
 void ui_get_scale_factor(UIState* ui, float* scale_x, float* scale_y) {
-    if (!ui || !scale_x || !scale_y)
+    if (!ui || !scale_x || !scale_y) {
         return;
+    }
 
-    int win_w, win_h;
-    SDL_GetWindowSize(ui->window, &win_w, &win_h);
-
-    int rend_w = 0;
-    int rend_h = 0;
-    SDL_GetCurrentRenderOutputSize(ui->renderer, &rend_w, &rend_h);
-
-    if (win_w <= 0 || win_h <= 0 || rend_w <= 0 || rend_h <= 0) {
+    if (!ui_viewport_get_scale(ui->renderer, scale_x, scale_y)) {
         *scale_x = 1.0f;
         *scale_y = 1.0f;
-        return;
     }
-
-    /* Keep scaling uniform to match LETTERBOX logical presentation. */
-    const float sx = (float)rend_w / (float)win_w;
-    const float sy = (float)rend_h / (float)win_h;
-    const float uniform = (sx < sy) ? sx : sy;
-
-    *scale_x = uniform;
-    *scale_y = uniform;
-}
-
-/**
- * Convert window coordinates to logical UI coordinates used for rendering.
- * This accounts for uniform scaling and letterbox offsets.
- */
-static void ui_window_to_logical_coords(UIState* ui, const AppConfig* config, float window_x,
-                                        float window_y, float* logical_x, float* logical_y) {
-    if (!ui || !config || !logical_x || !logical_y) {
-        return;
-    }
-
-    int win_w = 0;
-    int win_h = 0;
-    SDL_GetWindowSize(ui->window, &win_w, &win_h);
-
-    if (win_w <= 0 || win_h <= 0 || config->window_width <= 0 || config->window_height <= 0) {
-        *logical_x = window_x;
-        *logical_y = window_y;
-        return;
-    }
-
-    const float sx = (float)win_w / (float)config->window_width;
-    const float sy = (float)win_h / (float)config->window_height;
-    const float uniform_scale = (sx < sy) ? sx : sy;
-
-    if (uniform_scale <= 0.0f) {
-        *logical_x = window_x;
-        *logical_y = window_y;
-        return;
-    }
-
-    const float viewport_w = (float)config->window_width * uniform_scale;
-    const float viewport_h = (float)config->window_height * uniform_scale;
-    const float viewport_x = ((float)win_w - viewport_w) * 0.5f;
-    const float viewport_y = ((float)win_h - viewport_h) * 0.5f;
-
-    *logical_x = (window_x - viewport_x) / uniform_scale;
-    *logical_y = (window_y - viewport_y) / uniform_scale;
 }
 
 /**
@@ -537,8 +484,8 @@ bool ui_handle_event(UIState* ui, Palette* palette, SDL_Event* event, const AppC
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
             if (event->button.button == SDL_BUTTON_LEFT) {
                 ui->mouse_down = true;
-                ui_window_to_logical_coords(ui, config, event->button.x, event->button.y,
-                                            &ui->mouse_x, &ui->mouse_y);
+                ui_viewport_window_to_logical(ui->renderer, event->button.x, event->button.y,
+                                              &ui->mouse_x, &ui->mouse_y);
 
                 if (!ui_handle_mouse_click(ui, palette, ui->mouse_x, ui->mouse_y, config)) {
                     ui_update_inputs(ui, 1.0f / 60.0f, true, false);
@@ -551,15 +498,15 @@ bool ui_handle_event(UIState* ui, Palette* palette, SDL_Event* event, const AppC
         case SDL_EVENT_MOUSE_BUTTON_UP:
             if (event->button.button == SDL_BUTTON_LEFT) {
                 ui->mouse_down = false;
-                ui_window_to_logical_coords(ui, config, event->button.x, event->button.y,
-                                            &ui->mouse_x, &ui->mouse_y);
+                ui_viewport_window_to_logical(ui->renderer, event->button.x, event->button.y,
+                                              &ui->mouse_x, &ui->mouse_y);
                 ui_update_inputs(ui, 1.0f / 60.0f, false, true);
             }
             break;
 
         case SDL_EVENT_MOUSE_MOTION: {
-            ui_window_to_logical_coords(ui, config, event->motion.x, event->motion.y,
-                                        &ui->mouse_x, &ui->mouse_y);
+            ui_viewport_window_to_logical(ui->renderer, event->motion.x, event->motion.y,
+                                          &ui->mouse_x, &ui->mouse_y);
             ui_update_inputs(ui, 1.0f / 60.0f, false, false);
             break;
         }

@@ -28,19 +28,38 @@ bool double_click_check(DoubleClickDetector* detector, int target_id) {
     }
 
     Uint64 current_time = SDL_GetTicks();
-    bool is_double_click = false;
+    bool has_previous = detector->last_clicked_target >= 0;
 
-    // Check if this is a double-click
-    if (detector->last_clicked_target == target_id && detector->last_click_time > 0 &&
-        (current_time - detector->last_click_time) < detector->threshold_ms) {
-        is_double_click = true;
+    if (!has_previous) {
+        detector->last_click_time = current_time;
+        detector->last_clicked_target = target_id;
+        return false;
     }
 
-    // Update state for next click
-    detector->last_click_time = current_time;
-    detector->last_clicked_target = target_id;
+    // SDL ticks are monotonic, but guard against unexpected backwards values.
+    bool time_ordered = current_time >= detector->last_click_time;
+    Uint64 elapsed = current_time - detector->last_click_time;
+    bool same_target = detector->last_clicked_target == target_id;
+    bool within_threshold = time_ordered && elapsed < detector->threshold_ms;
 
-    return is_double_click;
+    if (same_target && within_threshold) {
+        // A completed double-click consumes the pending state.
+        detector->last_click_time = 0;
+        detector->last_clicked_target = -1;
+        return true;
+    }
+
+    if (!same_target) {
+        // Different target starts a new sequence immediately.
+        detector->last_click_time = current_time;
+        detector->last_clicked_target = target_id;
+        return false;
+    }
+
+    // Same target but outside threshold clears stale pending state.
+    detector->last_click_time = 0;
+    detector->last_clicked_target = -1;
+    return false;
 }
 
 /**
@@ -93,5 +112,5 @@ Uint64 double_click_get_time_since_last(const DoubleClickDetector* detector) {
  * Check if detector has recorded a previous click
  */
 bool double_click_has_previous(const DoubleClickDetector* detector) {
-    return detector && detector->last_click_time > 0;
+    return detector && detector->last_clicked_target >= 0;
 }

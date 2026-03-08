@@ -154,7 +154,7 @@ bool palette_manager_save(PaletteManager* pm, const char* filepath) {
     const char* save_path = filepath;
     if (!save_path) {
         if (!pm->file_loaded || pm->current_file[0] == '\0') {
-            save_path = "palette.dat";  // Default filename
+            return false;
         } else {
             save_path = pm->current_file;
         }

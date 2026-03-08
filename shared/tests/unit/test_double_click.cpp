@@ -60,17 +60,14 @@ TEST_F(DoubleClickTest, DoubleClickDetection) {
 }
 
 TEST_F(DoubleClickTest, DoubleClickTimeout) {
-    Uint32 current_time = SDL_GetTicks();
+    double_click_set_threshold(&detector, 5);
 
     // First click
     double_click_check(&detector, 1);
     EXPECT_TRUE(double_click_has_previous(&detector));
 
-    // Wait too long for second click
-    current_time += 1000;  // 1 second later (should timeout)
-    // To simulate a timeout, we just don't call check again.
-    // The next call to check will not be a double click.
-    current_time += 1000;
+    // Wait beyond threshold before second click.
+    SDL_Delay(15);
     bool result = double_click_check(&detector, 1);
     EXPECT_FALSE(result);
 }
@@ -78,20 +75,13 @@ TEST_F(DoubleClickTest, DoubleClickTimeout) {
 // ===== Timing Tests =====
 
 TEST_F(DoubleClickTest, ExactTimingBoundaries) {
-    Uint32 current_time = SDL_GetTicks();
+    double_click_set_threshold(&detector, 10);
 
     // First click
     double_click_check(&detector, 1);
 
-    // Test at exact boundary of double-click window
-    // Note: Exact timing depends on implementation constants
-    current_time += 500;  // 500ms - typically at or near the limit
-
-    // Update without click to process timeout
-    // To simulate a timeout, we just don't call check again.
-
-    // Should have timed out by now
-    current_time += 501;
+    // Cross the configured threshold to force timeout.
+    SDL_Delay(20);
     bool result = double_click_check(&detector, 1);
     EXPECT_FALSE(result);
 }
