@@ -49,3 +49,31 @@ void Player::Move() {
 int Player::GetGridSize() {
     return _grid_size;
 }
+
+bool Player::DamageFrontSubtile() {
+    if (!_map_ptr) {
+        return false;
+    }
+
+    int target_x = _pos_x + (_grid_size / 2);
+    int target_y = _pos_y + (_grid_size / 2);
+
+    switch (_direction) {
+        case Direction::kUp:
+            target_y = _pos_y - 1;
+            break;
+        case Direction::kDown:
+            target_y = _pos_y + _grid_size;
+            break;
+        case Direction::kLeft:
+            target_x = _pos_x - 1;
+            break;
+        case Direction::kRight:
+            target_x = _pos_x + _grid_size;
+            break;
+        case Direction::kNone:
+            return false;
+    }
+
+    return _map_ptr->DamageAtWorldPosition(target_x, target_y);
+}

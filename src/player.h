@@ -13,6 +13,8 @@ class Player : public Character {
     void Move() override;
 
     int GetGridSize();
+
+    bool DamageFrontSubtile();
 };
 
 #endif

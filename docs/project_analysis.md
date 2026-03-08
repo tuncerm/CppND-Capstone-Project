@@ -59,6 +59,20 @@ Follow-up TODO implementation and cleanup are complete:
 - Build: `cmake --build build --clean-first` passes.
 - Tests: `ctest --output-on-failure` and `ctest -L shared --output-on-failure` pass (`204/204`).
 
+## Destructible map middle-layer status (2026-03-08)
+Implemented in runtime:
+
+- `GameMap` supports a 4x4 subtile middle layer per 32x32 grid cell (`16` subtiles).
+- Added world-space hit mapping API (`WorldToSubtile`, `DamageAtWorldPosition`).
+- Player fire action now damages one subtile in the facing direction (`F` key path).
+- Renderer draws destructible cells at subtile granularity (8x8 visual blocks), so visual
+  destruction aligns with subtile hitboxes.
+
+Remaining follow-up:
+
+- Integrate real tile pixel art rendering from tile-maker output (current runtime still uses
+  color blocks, with tile-id variation only as color tinting).
+
 ## Remaining recommendations (non-blocking)
 - Monitor strict cppcheck pull-request output for 1-2 cycles, then promote stable checks from non-blocking to blocking.
 

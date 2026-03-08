@@ -17,8 +17,9 @@ void Controller::ChangeDirection(Player& player, Player::Direction input) {
 }
 
 void Controller::FireProjectile(Player& player) const {
-    (void)player;
-    std::cout << "Fire in the hole!" << std::endl;
+    if (player.DamageFrontSubtile()) {
+        std::cout << "Subtile damaged." << std::endl;
+    }
 }
 
 void Controller::HandlePause() const {
@@ -27,19 +28,27 @@ void Controller::HandlePause() const {
 
 void Controller::HandleInput(bool& running, Player& player) const {
     const bool* keystates = SDL_GetKeyboardState(nullptr);  // SDL3 returns bool*
+    bool fire_pressed = false;
+    bool pause_pressed = false;
 
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_EVENT_QUIT) {  // SDL_QUIT renamed
             running = false;
+        } else if (e.type == SDL_EVENT_KEY_DOWN) {
+            if (e.key.scancode == SDL_SCANCODE_F) {
+                fire_pressed = true;
+            } else if (e.key.scancode == SDL_SCANCODE_P) {
+                pause_pressed = true;
+            }
         }
     }
 
-    if (keystates[SDL_SCANCODE_F]) {
+    if (fire_pressed) {
         FireProjectile(player);
     }
 
-    if (keystates[SDL_SCANCODE_P]) {
+    if (pause_pressed || keystates[SDL_SCANCODE_P]) {
         HandlePause();
         return;
     }

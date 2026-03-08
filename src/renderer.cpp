@@ -1,5 +1,6 @@
 #include "renderer.h"
 #include <algorithm>
+#include <cstdint>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -8,6 +9,20 @@
 #include "constants.h"
 #include "enemy.h"
 #include "player.h"
+
+namespace {
+constexpr int kSubtilesPerAxis = GameMap::kSubtilesPerAxis;
+constexpr float kSubtileScale = 1.0f / static_cast<float>(kSubtilesPerAxis);
+
+ConfigColorRGBA color_with_tile_variation(const ConfigColorRGBA& base, std::uint8_t tile_id) {
+    ConfigColorRGBA out = base;
+    const int variation = static_cast<int>(tile_id % 4u) * 10;
+    out.r = static_cast<std::uint8_t>(std::min(255, static_cast<int>(out.r) + variation));
+    out.g = static_cast<std::uint8_t>(std::min(255, static_cast<int>(out.g) + variation));
+    out.b = static_cast<std::uint8_t>(std::min(255, static_cast<int>(out.b) + variation));
+    return out;
+}
+}  // namespace
 
 Renderer::Renderer(const int grid_size, const int grid_width, const int grid_height,
                    std::shared_ptr<GameMap> map_ptr, SDLContext* context,
@@ -71,15 +86,44 @@ Renderer::~Renderer() {}
 
 void Renderer::Render(Player& player, const Enemy& enemy) {
     std::vector<RenderObject> render_objects;
+    const float subtile_size = static_cast<float>(_grid_size) * kSubtileScale;
 
     // Add map objects to render list
     for (int row = 0; row < _map_ptr->RowCount(); ++row) {
         for (int col = 0; col < _map_ptr->ColCount(); ++col) {
+            const float base_x = static_cast<float>(col * _grid_size);
+            const float base_y = static_cast<float>(row * _grid_size);
+
+            if (_map_ptr->HasDestructibleSubtiles(row, col)) {
+                for (int subtile_row = 0; subtile_row < kSubtilesPerAxis; ++subtile_row) {
+                    for (int subtile_col = 0; subtile_col < kSubtilesPerAxis; ++subtile_col) {
+                        const int subtile_index = subtile_row * kSubtilesPerAxis + subtile_col;
+                        const bool destroyed =
+                            _map_ptr->IsSubtileDestroyed(row, col, subtile_index);
+                        const std::uint8_t movement =
+                            _map_ptr->GetSubtileMovement(row, col, subtile_index);
+                        SDL_FRect subtile_rect{
+                            base_x + static_cast<float>(subtile_col) * subtile_size,
+                            base_y + static_cast<float>(subtile_row) * subtile_size, subtile_size,
+                            subtile_size};
+
+                        if (destroyed || movement == GameMap::kMovementPass) {
+                            render_objects.push_back({subtile_rect, _floor_color});
+                        } else {
+                            const auto tile_id = _map_ptr->GetSubtileId(row, col, subtile_index);
+                            render_objects.push_back(
+                                {subtile_rect, color_with_tile_variation(_wall_color, tile_id)});
+                        }
+                    }
+                }
+                continue;
+            }
+
             SDL_FRect block;
             block.w = static_cast<float>(_grid_size);
             block.h = static_cast<float>(_grid_size);
-            block.x = static_cast<float>(col * _grid_size);
-            block.y = static_cast<float>(row * _grid_size);
+            block.x = base_x;
+            block.y = base_y;
 
             if (_map_ptr->GetElement(row, col) == 1) {
                 render_objects.push_back({block, _wall_color});
