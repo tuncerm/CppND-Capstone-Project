@@ -6,6 +6,7 @@ enable_testing()
 
 # Option to build tests
 option(SHARED_COMPONENTS_BUILD_TESTS "Build shared_components tests" ON)
+option(SHARED_COMPONENTS_HEADLESS_TESTS "Run shared component tests with headless SDL video driver" ON)
 
 if(NOT SHARED_COMPONENTS_BUILD_TESTS)
     return()
@@ -115,13 +116,27 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+if(SHARED_COMPONENTS_HEADLESS_TESTS)
+    set(SHARED_TEST_ENV "SDL_VIDEO_DRIVER=dummy")
+    set_tests_properties(${TEST_TARGET} PROPERTIES ENVIRONMENT "${SHARED_TEST_ENV}")
+endif()
+
 # Test discovery for individual test cases
 if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.10)
     include(GoogleTest)
-    gtest_discover_tests(${TEST_TARGET}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-    )
+    if(SHARED_COMPONENTS_HEADLESS_TESTS)
+        gtest_discover_tests(${TEST_TARGET}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            PROPERTIES
+                VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+                ENVIRONMENT "${SHARED_TEST_ENV}"
+        )
+    else()
+        gtest_discover_tests(${TEST_TARGET}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+        )
+    endif()
 endif()
 
 # Coverage target (if gcov/lcov available)
@@ -172,6 +187,7 @@ endif()
 message(STATUS "")
 message(STATUS "Shared Components Test Configuration:")
 message(STATUS "  Build Tests: ${SHARED_COMPONENTS_BUILD_TESTS}")
+message(STATUS "  Headless Tests: ${SHARED_COMPONENTS_HEADLESS_TESTS}")
 message(STATUS "  Test Target: ${TEST_TARGET}")
 if(GTest_FOUND)
     message(STATUS "  Google Test: System installation")
