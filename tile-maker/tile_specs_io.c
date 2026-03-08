@@ -1,6 +1,5 @@
 #include "tile_specs_io.h"
 
-#include <stdio.h>
 #include <string.h>
 
 uint8_t tile_specs[TILE_COUNT];
@@ -26,70 +25,6 @@ void tile_specs_reset_defaults(void) {
 
 void tile_specs_init(void) {
     tile_specs_reset_defaults();
-}
-
-bool tile_specs_load(const char* path) {
-    if (!path) {
-        return false;
-    }
-
-    FILE* file = fopen(path, "rb");
-    if (!file) {
-        printf("Warning: Could not open tile specs file '%s', using defaults\n", path);
-        tile_specs_reset_defaults();
-        return false;
-    }
-
-    fseek(file, 0, SEEK_END);
-    long file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    if (file_size != TILE_SPECS_FILE_SIZE) {
-        printf("Warning: Invalid tile specs size. Expected %d bytes, got %ld. Using defaults.\n",
-               TILE_SPECS_FILE_SIZE, file_size);
-        fclose(file);
-        tile_specs_reset_defaults();
-        return false;
-    }
-
-    size_t bytes_read = fread(tile_specs, 1, TILE_SPECS_FILE_SIZE, file);
-    fclose(file);
-
-    if (bytes_read != TILE_SPECS_FILE_SIZE) {
-        printf(
-            "Warning: Failed to read complete tile specs. Read %zu bytes, expected %d. Using "
-            "defaults.\n",
-            bytes_read, TILE_SPECS_FILE_SIZE);
-        tile_specs_reset_defaults();
-        return false;
-    }
-
-    tile_specs_modified = false;
-    printf("Tile specs loaded successfully from '%s'\n", path);
-    return true;
-}
-
-bool tile_specs_save(const char* path) {
-    if (!path) {
-        return false;
-    }
-
-    FILE* file = fopen(path, "wb");
-    if (!file) {
-        printf("Error: Could not open tile specs file '%s' for writing\n", path);
-        return false;
-    }
-
-    size_t bytes_written = fwrite(tile_specs, 1, TILE_SPECS_FILE_SIZE, file);
-    fclose(file);
-    if (bytes_written != TILE_SPECS_FILE_SIZE) {
-        printf("Error: Failed to write tile specs. Wrote %zu bytes, expected %d\n", bytes_written,
-               TILE_SPECS_FILE_SIZE);
-        return false;
-    }
-
-    tile_specs_mark_saved();
-    printf("Tile specs saved successfully to '%s'\n", path);
-    return true;
 }
 
 bool tile_specs_is_modified(void) {

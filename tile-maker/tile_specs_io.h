@@ -24,15 +24,13 @@
 #define TILE_MOVE_REQUIRE 2
 #define TILE_MOVE_SPECIAL 3
 
-#define TILE_SPECS_FILE_SIZE TILE_COUNT
+#define TILE_SPECS_BLOCK_SIZE TILE_COUNT
 
 extern uint8_t tile_specs[TILE_COUNT];
 extern bool tile_specs_modified;
 
 void tile_specs_init(void);
 void tile_specs_reset_defaults(void);
-bool tile_specs_load(const char* path);
-bool tile_specs_save(const char* path);
 bool tile_specs_is_modified(void);
 void tile_specs_mark_saved(void);
 

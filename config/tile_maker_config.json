@@ -17,7 +17,7 @@
     "tile_sheet_x": 10,
     "tile_sheet_y": 50,
     "pixel_editor_x": 550,
-    "pixel_editor_y": 50
+    "pixel_editor_y": 136
   },
   "colors": {
     "background_color": "#202020FF",
@@ -30,7 +30,6 @@
   },
   "files": {
     "default_tiles_file": "tiles.dat",
-    "default_palette_file": "palette.dat",
-    "default_tile_specs_file": "tile_specs.dat"
+    "default_palette_file": "palette.dat"
   }
 }

@@ -1,6 +1,9 @@
 #include "tiles_io.h"
+
 #include <stdio.h>
 #include <string.h>
+
+#include "tile_specs_io.h"
 
 /**
  * Global tile storage - 256 tiles, each 32 bytes
@@ -37,8 +40,10 @@ void tiles_init(void) {
 }
 
 /**
- * Load tiles from binary file
- * Expected format: 8192 bytes (256 tiles × 32 bytes each)
+ * Load tiles from binary file.
+ * Supported formats:
+ * - 8448 bytes: [tile pixels][tile specs]
+ * - 8192 bytes: legacy [tile pixels] only (specs defaulted)
  */
 bool tiles_load(const char* path) {
     if (!path) {
@@ -49,36 +54,54 @@ bool tiles_load(const char* path) {
     if (!file) {
         printf("Warning: Could not open tiles file '%s', initializing with empty tiles\n", path);
         tiles_init();
+        tile_specs_reset_defaults();
         return false;
     }
 
-    // Check file size
+    // Check file size.
     fseek(file, 0, SEEK_END);
     long file_size = ftell(file);
     fseek(file, 0, SEEK_SET);
 
-    if (file_size != TILES_FILE_SIZE) {
-        printf(
-            "Warning: Invalid tiles file size. Expected %d bytes, got %ld bytes. Initializing with "
-            "empty tiles.\n",
-            TILES_FILE_SIZE, file_size);
+    if (file_size != TILES_FILE_SIZE && file_size != TILES_LEGACY_FILE_SIZE) {
+        printf("Warning: Invalid tiles file size. Expected %d (new) or %d (legacy), got %ld\n",
+               TILES_FILE_SIZE, TILES_LEGACY_FILE_SIZE, file_size);
         fclose(file);
         tiles_init();
+        tile_specs_reset_defaults();
         return false;
     }
 
-    // Read tile data
-    size_t bytes_read = fread(tiles, 1, TILES_FILE_SIZE, file);
-    fclose(file);
-
-    if (bytes_read != TILES_FILE_SIZE) {
-        printf(
-            "Warning: Failed to read complete tiles file. Read %zu bytes, expected %d. "
-            "Initializing with empty tiles.\n",
-            bytes_read, TILES_FILE_SIZE);
+    // Read tile pixel block.
+    size_t pixels_read = fread(tiles, 1, TILES_PIXEL_DATA_SIZE, file);
+    if (pixels_read != TILES_PIXEL_DATA_SIZE) {
+        printf("Warning: Failed to read tile pixel data from '%s'\n", path);
+        fclose(file);
         tiles_init();
+        tile_specs_reset_defaults();
         return false;
     }
+
+    if (file_size == TILES_FILE_SIZE) {
+        // Read embedded tile specs block.
+        size_t specs_read = fread(tile_specs, 1, TILE_SPECS_BLOCK_SIZE, file);
+        if (specs_read != TILE_SPECS_BLOCK_SIZE) {
+            printf("Warning: Failed to read tile specs block from '%s'\n", path);
+            fclose(file);
+            tiles_init();
+            tile_specs_reset_defaults();
+            return false;
+        }
+        tile_specs_mark_saved();
+    } else {
+        // Legacy format has no specs block.
+        tile_specs_reset_defaults();
+        tile_specs_mark_saved();
+        printf("Warning: Loaded legacy tiles file '%s' without specs block; default specs applied.\n",
+               path);
+    }
+
+    fclose(file);
 
     // Mark all tiles as clean (not modified since load)
     tiles_modified = false;
@@ -91,8 +114,8 @@ bool tiles_load(const char* path) {
 }
 
 /**
- * Save tiles to binary file
- * Saves exactly 8192 bytes (256 tiles × 32 bytes each)
+ * Save tiles to binary file.
+ * Format: [tile pixels][tile specs]
  */
 bool tiles_save(const char* path) {
     if (!path) {
@@ -105,18 +128,27 @@ bool tiles_save(const char* path) {
         return false;
     }
 
-    // Write tile data
-    size_t bytes_written = fwrite(tiles, 1, TILES_FILE_SIZE, file);
-    fclose(file);
-
-    if (bytes_written != TILES_FILE_SIZE) {
-        printf("Error: Failed to write complete tiles data. Wrote %zu bytes, expected %d\n",
-               bytes_written, TILES_FILE_SIZE);
+    // Write tile pixel block.
+    size_t pixels_written = fwrite(tiles, 1, TILES_PIXEL_DATA_SIZE, file);
+    if (pixels_written != TILES_PIXEL_DATA_SIZE) {
+        fclose(file);
+        printf("Error: Failed to write tile pixel data. Wrote %zu bytes, expected %d\n",
+               pixels_written, TILES_PIXEL_DATA_SIZE);
         return false;
     }
 
-    // Clear modification flag
+    // Write embedded tile specs block.
+    size_t specs_written = fwrite(tile_specs, 1, TILE_SPECS_BLOCK_SIZE, file);
+    fclose(file);
+    if (specs_written != TILE_SPECS_BLOCK_SIZE) {
+        printf("Error: Failed to write tile specs data. Wrote %zu bytes, expected %d\n",
+               specs_written, TILE_SPECS_BLOCK_SIZE);
+        return false;
+    }
+
+    // Clear modification flags
     tiles_mark_saved();
+    tile_specs_mark_saved();
 
     printf("Tiles saved successfully to '%s'\n", path);
     return true;

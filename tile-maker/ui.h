@@ -3,6 +3,7 @@
 
 #include <SDL3/SDL.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "../shared/config/config_manager.h"
 #include "../shared/text_renderer/text_renderer.h"
@@ -13,6 +14,18 @@
 /**
  * UI layout constants (fallback defaults)
  */
+
+// UI action codes emitted by ui_handle_mouse
+#define UI_ACTION_NONE 0
+#define UI_ACTION_SAVE 1
+#define UI_ACTION_LOAD 2
+#define UI_ACTION_NEW 3
+#define UI_ACTION_QUIT 4
+#define UI_ACTION_QUIT_CONFIRM 5
+
+#define UI_ACTION_SPEC_HEALTH_SET_BASE 30
+#define UI_ACTION_SPEC_DESTRUCT_SET_BASE 40
+#define UI_ACTION_SPEC_MOVE_SET_BASE 50
 
 /**
  * UI button structure
@@ -30,6 +43,16 @@ typedef struct {
     SDL_FRect palette_bar_rect;
     UIInputElement palette_swatches[16];
     int selected_palette_index;
+
+    // Tile specs panel
+    SDL_FRect tile_spec_rect;
+    UIButton spec_health_buttons[8];
+    UIButton spec_destruction_buttons[8];
+    UIButton spec_movement_buttons[4];
+    int spec_tile_id;
+    uint8_t spec_health;
+    uint8_t spec_destruction_mode;
+    uint8_t spec_movement_mode;
 
     // Buttons
     UIButton save_button;
@@ -136,6 +159,12 @@ void ui_set_status(UIState* ui, const char* text);
  * @param dirty True if data is modified, false otherwise
  */
 void ui_set_dirty(UIState* ui, bool dirty);
+
+/**
+ * Set selected tile spec values displayed in the UI panel.
+ */
+void ui_set_tile_spec(UIState* ui, int tile_id, uint8_t health, uint8_t destruction_mode,
+                      uint8_t movement_mode);
 
 /**
  * Check for double-click

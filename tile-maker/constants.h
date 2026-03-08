@@ -21,7 +21,7 @@
 #define TILE_SHEET_POS_X 10
 #define TILE_SHEET_POS_Y 50
 #define PIXEL_EDITOR_POS_X 550
-#define PIXEL_EDITOR_POS_Y 50
+#define PIXEL_EDITOR_POS_Y 136
 
 // Colors
 #define CLEAR_COLOR_R 32

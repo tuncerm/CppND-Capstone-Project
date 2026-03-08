@@ -10,8 +10,11 @@
 #define TILE_WIDTH 8
 #define TILE_HEIGHT 8
 #define TILE_COUNT 256
-#define BYTES_PER_TILE 32                              // 8x8 pixels, 2 pixels per byte (4-bit each)
-#define TILES_FILE_SIZE (TILE_COUNT * BYTES_PER_TILE)  // 8192 bytes
+#define BYTES_PER_TILE 32  // 8x8 pixels, 2 pixels per byte (4-bit each)
+#define TILES_PIXEL_DATA_SIZE (TILE_COUNT * BYTES_PER_TILE)  // 8192 bytes
+#define TILES_SPECS_DATA_SIZE TILE_COUNT                      // 256 bytes
+#define TILES_FILE_SIZE (TILES_PIXEL_DATA_SIZE + TILES_SPECS_DATA_SIZE)  // 8448 bytes
+#define TILES_LEGACY_FILE_SIZE TILES_PIXEL_DATA_SIZE
 
 /**
  * Global tile storage - 256 tiles, each 32 bytes
@@ -38,8 +41,9 @@ extern bool tiles_modified;
 void tiles_init(void);
 
 /**
- * Load tiles from tiles.dat file
- * File format: 8192 bytes (256 tiles * 32 bytes each)
+ * Load tiles and specs from tiles.dat file
+ * Preferred file format: 8448 bytes (tile pixels + per-tile specs)
+ * Legacy file format (8192 bytes pixels only) is accepted and defaults specs.
  *
  * @param path File path to load from (typically "tiles.dat")
  * @return true if successful, false on error
@@ -47,8 +51,8 @@ void tiles_init(void);
 bool tiles_load(const char* path);
 
 /**
- * Save tiles to tiles.dat file
- * File format: 8192 bytes (256 tiles * 32 bytes each)
+ * Save tiles and specs to tiles.dat file
+ * File format: 8448 bytes (tile pixels + per-tile specs)
  * Clears the global modified flag on successful save
  *
  * @param path File path to save to (typically "tiles.dat")
