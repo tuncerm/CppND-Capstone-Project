@@ -6,6 +6,335 @@
 
 // Double-click detection threshold (milliseconds)
 #define DOUBLE_CLICK_TIME 300
+#define SWATCH_ID_BASE 1000
+#define ACTION_ID_SAVE 2001
+#define ACTION_ID_RESET 2002
+#define ACTION_ID_LOAD 2003
+#define RGBA_ID_BASE 3000
+#define RGBA_OP_MINUS_10 0
+#define RGBA_OP_MINUS_1 1
+#define RGBA_OP_PLUS_1 2
+#define RGBA_OP_PLUS_10 3
+#define DIALOG_ID_SAVE_YES 4001
+#define DIALOG_ID_SAVE_NO 4002
+
+#define RGBA_BUTTON_INDEX(channel, op) ((channel) * UI_RGBA_BUTTONS_PER_CHANNEL + (op))
+
+static Uint8 ui_lerp_u8(Uint8 a, Uint8 b, float t) {
+    if (t < 0.0f) {
+        t = 0.0f;
+    } else if (t > 1.0f) {
+        t = 1.0f;
+    }
+    return (Uint8)(a + (Uint8)((float)(b - a) * t));
+}
+
+static SDL_Color ui_blend_color(SDL_Color a, SDL_Color b, float t) {
+    SDL_Color out = {ui_lerp_u8(a.r, b.r, t), ui_lerp_u8(a.g, b.g, t), ui_lerp_u8(a.b, b.b, t),
+                     ui_lerp_u8(a.a, b.a, t)};
+    return out;
+}
+
+static SDL_Color ui_darken_color(SDL_Color c, float factor) {
+    if (factor < 0.0f) {
+        factor = 0.0f;
+    } else if (factor > 1.0f) {
+        factor = 1.0f;
+    }
+
+    SDL_Color out = {(Uint8)((float)c.r * factor), (Uint8)((float)c.g * factor),
+                     (Uint8)((float)c.b * factor), c.a};
+    return out;
+}
+
+static void ui_sync_selected_swatch(UIState* ui) {
+    if (!ui) {
+        return;
+    }
+
+    for (int i = 0; i < UI_SWATCH_COUNT; i++) {
+        ui_input_set_selected(&ui->swatch_inputs[i], i == ui->selected_swatch);
+    }
+}
+
+static UIInputElement* ui_find_rgba_button(UIState* ui, int id) {
+    if (!ui) {
+        return NULL;
+    }
+
+    for (int i = 0; i < UI_RGBA_BUTTON_COUNT; i++) {
+        if (ui->rgba_buttons[i].id == id) {
+            return &ui->rgba_buttons[i];
+        }
+    }
+    return NULL;
+}
+
+static void ui_on_rgba_value_change(int id, float value, void* userdata) {
+    (void)id;
+    (void)value;
+    (void)userdata;
+}
+
+static void ui_on_rgba_click(int id, void* userdata) {
+    UIState* ui = (UIState*)userdata;
+    if (!ui || !ui->active_palette) {
+        return;
+    }
+
+    const int local = id - RGBA_ID_BASE;
+    if (local < 0) {
+        return;
+    }
+
+    const int channel = local / 10;
+    const int op = local % 10;
+    if (channel < 0 || channel >= UI_RGBA_CHANNEL_COUNT) {
+        return;
+    }
+
+    PaletteColor current = palette_get_color(ui->active_palette, ui->selected_swatch);
+    Uint8 val = (channel == 0)   ? current.r
+                : (channel == 1) ? current.g
+                : (channel == 2) ? current.b
+                                 : current.a;
+
+    Uint8 new_val = val;
+    switch (op) {
+        case RGBA_OP_MINUS_10:
+            new_val = (val >= 10) ? (Uint8)(val - 10) : 0;
+            break;
+        case RGBA_OP_MINUS_1:
+            new_val = (val > 0) ? (Uint8)(val - 1) : 0;
+            break;
+        case RGBA_OP_PLUS_1:
+            new_val = (val < 255) ? (Uint8)(val + 1) : 255;
+            break;
+        case RGBA_OP_PLUS_10:
+            new_val = (val <= 245) ? (Uint8)(val + 10) : 255;
+            break;
+        default:
+            return;
+    }
+
+    Uint8 r = current.r;
+    Uint8 g = current.g;
+    Uint8 b = current.b;
+    Uint8 a = current.a;
+
+    if (channel == 0) {
+        r = new_val;
+    } else if (channel == 1) {
+        g = new_val;
+    } else if (channel == 2) {
+        b = new_val;
+    } else {
+        a = new_val;
+    }
+
+    palette_set_color(ui->active_palette, ui->selected_swatch, palette_make_color(r, g, b, a));
+
+    UIInputElement* rgba_button = ui_find_rgba_button(ui, id);
+    if (rgba_button) {
+        ui_input_set_value(rgba_button, (float)new_val);
+    }
+}
+
+static void ui_on_action_click(int id, void* userdata) {
+    UIState* ui = (UIState*)userdata;
+    if (!ui || !ui->active_palette) {
+        return;
+    }
+
+    switch (id) {
+        case ACTION_ID_SAVE:
+            ui_show_save_dialog(ui);
+            break;
+        case ACTION_ID_RESET:
+            ui_reset_palette(ui, ui->active_palette);
+            break;
+        case ACTION_ID_LOAD:
+            if (palette_load(ui->active_palette, "palette.dat")) {
+                printf("Palette loaded from palette.dat\n");
+            }
+            break;
+        default:
+            break;
+    }
+}
+
+static void ui_on_dialog_click(int id, void* userdata) {
+    UIState* ui = (UIState*)userdata;
+    if (!ui || !ui->active_palette) {
+        return;
+    }
+
+    if (id == DIALOG_ID_SAVE_YES) {
+        if (palette_save(ui->active_palette, "palette.dat")) {
+            printf("Palette saved to palette.dat\n");
+        }
+    }
+
+    if (id == DIALOG_ID_SAVE_YES || id == DIALOG_ID_SAVE_NO) {
+        ui->show_save_dialog = false;
+    }
+}
+
+static void ui_on_swatch_click(int id, void* userdata) {
+    UIState* ui = (UIState*)userdata;
+    if (!ui || !ui->active_palette) {
+        return;
+    }
+
+    const int swatch = id - SWATCH_ID_BASE;
+    if (swatch < 0 || swatch >= UI_SWATCH_COUNT) {
+        return;
+    }
+
+    Uint32 current_time = SDL_GetTicks();
+    if (swatch == ui->last_click_swatch && current_time - ui->last_click_time < DOUBLE_CLICK_TIME) {
+        ui->selected_swatch = swatch;
+        ui_sync_selected_swatch(ui);
+        ui_open_color_picker(ui, ui->active_palette);
+        printf("Double-click detected on swatch %d\n", swatch);
+    } else {
+        ui->selected_swatch = swatch;
+        ui_sync_selected_swatch(ui);
+        printf("Selected swatch %d\n", swatch);
+    }
+    ui->last_click_swatch = swatch;
+    ui->last_click_time = current_time;
+}
+
+static void ui_init_input_elements(UIState* ui, const AppConfig* config) {
+    if (!ui || !config) {
+        return;
+    }
+
+    for (int row = 0; row < config->grid_rows; row++) {
+        for (int col = 0; col < config->grid_cols; col++) {
+            int index = row * config->grid_cols + col;
+            if (index >= UI_SWATCH_COUNT) {
+                break;
+            }
+
+            SDL_FRect bounds = {(float)(config->grid_start_x +
+                                         col * (config->swatch_size + config->swatch_border)),
+                                (float)(config->grid_start_y +
+                                         row * (config->swatch_size + config->swatch_border)),
+                                (float)config->swatch_size, (float)config->swatch_size};
+            ui_input_init(&ui->swatch_inputs[index], SWATCH_ID_BASE + index, bounds);
+            ui_input_set_callbacks(&ui->swatch_inputs[index], ui_on_swatch_click, NULL, ui);
+        }
+    }
+
+    int action_button_y =
+        config->ui_panel_y + config->ui_panel_height - config->action_button_height - 10;
+    int save_button_x = config->ui_panel_x + 10;
+    int reset_button_x = save_button_x + config->action_button_width + 10;
+    int load_button_x = reset_button_x + config->action_button_width + 10;
+
+    ui_input_init(&ui->action_buttons[0], ACTION_ID_SAVE,
+                  (SDL_FRect){(float)save_button_x, (float)action_button_y,
+                              (float)config->action_button_width, (float)config->action_button_height});
+    ui_input_set_callbacks(&ui->action_buttons[0], ui_on_action_click, NULL, ui);
+
+    ui_input_init(&ui->action_buttons[1], ACTION_ID_RESET,
+                  (SDL_FRect){(float)reset_button_x, (float)action_button_y,
+                              (float)config->action_button_width, (float)config->action_button_height});
+    ui_input_set_callbacks(&ui->action_buttons[1], ui_on_action_click, NULL, ui);
+
+    ui_input_init(&ui->action_buttons[2], ACTION_ID_LOAD,
+                  (SDL_FRect){(float)load_button_x, (float)action_button_y,
+                              (float)config->action_button_width, (float)config->action_button_height});
+    ui_input_set_callbacks(&ui->action_buttons[2], ui_on_action_click, NULL, ui);
+
+    for (int channel = 0; channel < UI_RGBA_CHANNEL_COUNT; channel++) {
+        float control_y = (float)(config->ui_panel_y + 20 + channel * config->ui_panel_row_height);
+        float control_x = (float)(config->ui_panel_x + 10);
+
+        float val_x = control_x + 50.0f;
+        float btn1_x = val_x + (float)config->value_display_width + 5.0f;
+        float btn2_x = btn1_x + (float)config->button_width + 5.0f;
+        float btn3_x = btn2_x + (float)config->button_width + 5.0f;
+        float btn4_x = btn3_x + (float)config->button_width + 5.0f;
+
+        const float w = (float)config->button_width;
+        const float h = (float)config->button_height;
+        const int base_id = RGBA_ID_BASE + channel * 10;
+
+        ui_input_init(&ui->rgba_buttons[RGBA_BUTTON_INDEX(channel, RGBA_OP_MINUS_10)],
+                      base_id + RGBA_OP_MINUS_10, (SDL_FRect){btn1_x, control_y, w, h});
+        ui_input_set_callbacks(&ui->rgba_buttons[RGBA_BUTTON_INDEX(channel, RGBA_OP_MINUS_10)],
+                               ui_on_rgba_click, ui_on_rgba_value_change, ui);
+
+        ui_input_init(&ui->rgba_buttons[RGBA_BUTTON_INDEX(channel, RGBA_OP_MINUS_1)],
+                      base_id + RGBA_OP_MINUS_1, (SDL_FRect){btn2_x, control_y, w, h});
+        ui_input_set_callbacks(&ui->rgba_buttons[RGBA_BUTTON_INDEX(channel, RGBA_OP_MINUS_1)],
+                               ui_on_rgba_click, ui_on_rgba_value_change, ui);
+
+        ui_input_init(&ui->rgba_buttons[RGBA_BUTTON_INDEX(channel, RGBA_OP_PLUS_1)],
+                      base_id + RGBA_OP_PLUS_1, (SDL_FRect){btn3_x, control_y, w, h});
+        ui_input_set_callbacks(&ui->rgba_buttons[RGBA_BUTTON_INDEX(channel, RGBA_OP_PLUS_1)],
+                               ui_on_rgba_click, ui_on_rgba_value_change, ui);
+
+        ui_input_init(&ui->rgba_buttons[RGBA_BUTTON_INDEX(channel, RGBA_OP_PLUS_10)],
+                      base_id + RGBA_OP_PLUS_10, (SDL_FRect){btn4_x, control_y, w, h});
+        ui_input_set_callbacks(&ui->rgba_buttons[RGBA_BUTTON_INDEX(channel, RGBA_OP_PLUS_10)],
+                               ui_on_rgba_click, ui_on_rgba_value_change, ui);
+    }
+
+    {
+        int dialog_x = (config->window_width - SAVE_DIALOG_WIDTH) / 2;
+        int dialog_y = (config->window_height - SAVE_DIALOG_HEIGHT) / 2;
+        int button_y = dialog_y + 50;
+        int yes_button_x = dialog_x + 10;
+        int no_button_x = dialog_x + 120;
+
+        ui_input_init(&ui->save_dialog_buttons[0], DIALOG_ID_SAVE_YES,
+                      (SDL_FRect){(float)yes_button_x, (float)button_y, 80.0f, 20.0f});
+        ui_input_set_callbacks(&ui->save_dialog_buttons[0], ui_on_dialog_click, NULL, ui);
+
+        ui_input_init(&ui->save_dialog_buttons[1], DIALOG_ID_SAVE_NO,
+                      (SDL_FRect){(float)no_button_x, (float)button_y, 80.0f, 20.0f});
+        ui_input_set_callbacks(&ui->save_dialog_buttons[1], ui_on_dialog_click, NULL, ui);
+    }
+
+    ui_sync_selected_swatch(ui);
+}
+
+static void ui_update_inputs(UIState* ui, float dt_seconds, bool mouse_pressed, bool mouse_released) {
+    if (!ui) {
+        return;
+    }
+
+    const bool interaction_enabled = !ui->show_save_dialog && !ui->color_picker_open;
+    const bool dialog_enabled = ui->show_save_dialog;
+
+    for (int i = 0; i < UI_ACTION_BUTTON_COUNT; i++) {
+        ui_input_set_enabled(&ui->action_buttons[i], interaction_enabled);
+        ui_input_update(&ui->action_buttons[i], dt_seconds, ui->mouse_x, ui->mouse_y, ui->mouse_down,
+                        mouse_pressed, mouse_released);
+    }
+
+    for (int i = 0; i < UI_SWATCH_COUNT; i++) {
+        ui_input_set_enabled(&ui->swatch_inputs[i], interaction_enabled);
+        ui_input_update(&ui->swatch_inputs[i], dt_seconds, ui->mouse_x, ui->mouse_y, ui->mouse_down,
+                        mouse_pressed, mouse_released);
+    }
+
+    for (int i = 0; i < UI_RGBA_BUTTON_COUNT; i++) {
+        ui_input_set_enabled(&ui->rgba_buttons[i], interaction_enabled);
+        ui_input_update(&ui->rgba_buttons[i], dt_seconds, ui->mouse_x, ui->mouse_y, ui->mouse_down,
+                        mouse_pressed, mouse_released);
+    }
+
+    for (int i = 0; i < UI_DIALOG_BUTTON_COUNT; i++) {
+        ui_input_set_enabled(&ui->save_dialog_buttons[i], dialog_enabled);
+        ui_input_update(&ui->save_dialog_buttons[i], dt_seconds, ui->mouse_x, ui->mouse_y,
+                        ui->mouse_down, mouse_pressed, mouse_released);
+    }
+}
 
 /**
  * Initialize UI system
@@ -21,6 +350,9 @@ bool ui_init(UIState* ui, const AppConfig* config) {
     ui->color_picker_open = false;
     ui->show_save_dialog = false;
     ui->last_click_swatch = -1;
+    ui->last_frame_ticks = SDL_GetTicks();
+    ui->active_palette = NULL;
+    ui->active_config = config;
 
     // Create window
     ui->window = SDL_CreateWindow(config->window_title, config->window_width, config->window_height,
@@ -42,6 +374,8 @@ bool ui_init(UIState* ui, const AppConfig* config) {
     // Set renderer logical size for consistent UI scaling
     SDL_SetRenderLogicalPresentation(ui->renderer, config->window_width, config->window_height,
                                      SDL_LOGICAL_PRESENTATION_LETTERBOX);
+
+    ui_init_input_elements(ui, config);
 
     printf("UI initialized successfully\n");
     return true;
@@ -77,88 +411,80 @@ void ui_get_scale_factor(UIState* ui, float* scale_x, float* scale_y) {
     int win_w, win_h;
     SDL_GetWindowSize(ui->window, &win_w, &win_h);
 
-    int rend_w, rend_h;
+    int rend_w = 0;
+    int rend_h = 0;
     SDL_GetCurrentRenderOutputSize(ui->renderer, &rend_w, &rend_h);
 
-    *scale_x = (float)rend_w / win_w;
-    *scale_y = (float)rend_h / win_h;
+    if (win_w <= 0 || win_h <= 0 || rend_w <= 0 || rend_h <= 0) {
+        *scale_x = 1.0f;
+        *scale_y = 1.0f;
+        return;
+    }
+
+    /* Keep scaling uniform to match LETTERBOX logical presentation. */
+    const float sx = (float)rend_w / (float)win_w;
+    const float sy = (float)rend_h / (float)win_h;
+    const float uniform = (sx < sy) ? sx : sy;
+
+    *scale_x = uniform;
+    *scale_y = uniform;
+}
+
+/**
+ * Convert window coordinates to logical UI coordinates used for rendering.
+ * This accounts for uniform scaling and letterbox offsets.
+ */
+static void ui_window_to_logical_coords(UIState* ui, const AppConfig* config, float window_x,
+                                        float window_y, float* logical_x, float* logical_y) {
+    if (!ui || !config || !logical_x || !logical_y) {
+        return;
+    }
+
+    int win_w = 0;
+    int win_h = 0;
+    SDL_GetWindowSize(ui->window, &win_w, &win_h);
+
+    if (win_w <= 0 || win_h <= 0 || config->window_width <= 0 || config->window_height <= 0) {
+        *logical_x = window_x;
+        *logical_y = window_y;
+        return;
+    }
+
+    const float sx = (float)win_w / (float)config->window_width;
+    const float sy = (float)win_h / (float)config->window_height;
+    const float uniform_scale = (sx < sy) ? sx : sy;
+
+    if (uniform_scale <= 0.0f) {
+        *logical_x = window_x;
+        *logical_y = window_y;
+        return;
+    }
+
+    const float viewport_w = (float)config->window_width * uniform_scale;
+    const float viewport_h = (float)config->window_height * uniform_scale;
+    const float viewport_x = ((float)win_w - viewport_w) * 0.5f;
+    const float viewport_y = ((float)win_h - viewport_h) * 0.5f;
+
+    *logical_x = (window_x - viewport_x) / uniform_scale;
+    *logical_y = (window_y - viewport_y) / uniform_scale;
 }
 
 /**
  * Handle mouse click events
  */
-static void ui_handle_mouse_click(UIState* ui, Palette* palette, float mouse_x, float mouse_y,
+static bool ui_handle_mouse_click(UIState* ui, Palette* palette, float mouse_x, float mouse_y,
                                   const AppConfig* config) {
-    if (ui->show_save_dialog) {
-        int dialog_x = (config->window_width - 220) / 2;
-        int dialog_y = (config->window_height - 80) / 2;
-        int button_y = dialog_y + 50;
-        int yes_button_x = dialog_x + 10;
-        int no_button_x = dialog_x + 120;
-
-        if (mouse_x >= yes_button_x && mouse_x <= yes_button_x + 80 && mouse_y >= button_y &&
-            mouse_y <= button_y + 20) {
-            if (palette_save(palette, "palette.dat")) {
-                printf("Palette saved to palette.dat\n");
-            }
-            ui->show_save_dialog = false;
-        } else if (mouse_x >= no_button_x && mouse_x <= no_button_x + 80 && mouse_y >= button_y &&
-                   mouse_y <= button_y + 20) {
-            ui->show_save_dialog = false;
-        }
-        return;
-    }
+    (void)palette;
+    (void)mouse_x;
+    (void)mouse_y;
+    (void)config;
 
     if (ui->color_picker_open) {
         // If a dialog is open, don't process background clicks
-        return;
-    }
-    // Check for clicks on action buttons
-    int save_button_x = config->ui_panel_x + 10;
-    int action_button_y =
-        config->ui_panel_y + config->ui_panel_height - config->action_button_height - 10;
-    int reset_button_x = save_button_x + config->action_button_width + 10;
-    int load_button_x = reset_button_x + config->action_button_width + 10;
-
-    if (mouse_x >= save_button_x && mouse_x <= save_button_x + config->action_button_width &&
-        mouse_y >= action_button_y && mouse_y <= action_button_y + config->action_button_height) {
-        ui_show_save_dialog(ui);
-        return;
+        return true;
     }
 
-    if (mouse_x >= reset_button_x && mouse_x <= reset_button_x + config->action_button_width &&
-        mouse_y >= action_button_y && mouse_y <= action_button_y + config->action_button_height) {
-        ui_reset_palette(ui, palette);
-        return;
-    }
-
-    if (mouse_x >= load_button_x && mouse_x <= load_button_x + config->action_button_width &&
-        mouse_y >= action_button_y && mouse_y <= action_button_y + config->action_button_height) {
-        if (palette_load(palette, "palette.dat")) {
-            printf("Palette loaded from palette.dat\n");
-        }
-        return;
-    }
-
-    if (ui_handle_rgba_button_click(ui, palette, mouse_x, mouse_y, config)) {
-        return;
-    }
-
-    int swatch = ui_get_swatch_at_position(mouse_x, mouse_y, config);
-    if (swatch >= 0) {
-        Uint32 current_time = SDL_GetTicks();
-        if (swatch == ui->last_click_swatch &&
-            current_time - ui->last_click_time < DOUBLE_CLICK_TIME) {
-            ui->selected_swatch = swatch;
-            ui_open_color_picker(ui, palette);
-            printf("Double-click detected on swatch %d\n", swatch);
-        } else {
-            ui->selected_swatch = swatch;
-            printf("Selected swatch %d\n", swatch);
-        }
-        ui->last_click_swatch = swatch;
-        ui->last_click_time = current_time;
-    }
+    return false;
 }
 
 /**
@@ -167,6 +493,9 @@ static void ui_handle_mouse_click(UIState* ui, Palette* palette, float mouse_x, 
 bool ui_handle_event(UIState* ui, Palette* palette, SDL_Event* event, const AppConfig* config) {
     if (!ui || !palette)
         return false;
+
+    ui->active_palette = palette;
+    ui->active_config = config;
 
     switch (event->type) {
         case SDL_EVENT_QUIT:
@@ -220,25 +549,30 @@ bool ui_handle_event(UIState* ui, Palette* palette, SDL_Event* event, const AppC
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
             if (event->button.button == SDL_BUTTON_LEFT) {
                 ui->mouse_down = true;
-                float scale_x, scale_y;
-                ui_get_scale_factor(ui, &scale_x, &scale_y);
-                ui->mouse_x = event->button.x * scale_x;
-                ui->mouse_y = event->button.y * scale_y;
-                ui_handle_mouse_click(ui, palette, ui->mouse_x, ui->mouse_y, config);
+                ui_window_to_logical_coords(ui, config, event->button.x, event->button.y,
+                                            &ui->mouse_x, &ui->mouse_y);
+
+                if (!ui_handle_mouse_click(ui, palette, ui->mouse_x, ui->mouse_y, config)) {
+                    ui_update_inputs(ui, 1.0f / 60.0f, true, false);
+                } else {
+                    ui_update_inputs(ui, 1.0f / 60.0f, false, false);
+                }
             }
             break;
 
         case SDL_EVENT_MOUSE_BUTTON_UP:
             if (event->button.button == SDL_BUTTON_LEFT) {
                 ui->mouse_down = false;
+                ui_window_to_logical_coords(ui, config, event->button.x, event->button.y,
+                                            &ui->mouse_x, &ui->mouse_y);
+                ui_update_inputs(ui, 1.0f / 60.0f, false, true);
             }
             break;
 
         case SDL_EVENT_MOUSE_MOTION: {
-            float scale_x, scale_y;
-            ui_get_scale_factor(ui, &scale_x, &scale_y);
-            ui->mouse_x = event->motion.x * scale_x;
-            ui->mouse_y = event->motion.y * scale_y;
+            ui_window_to_logical_coords(ui, config, event->motion.x, event->motion.y,
+                                        &ui->mouse_x, &ui->mouse_y);
+            ui_update_inputs(ui, 1.0f / 60.0f, false, false);
             break;
         }
     }
@@ -253,33 +587,65 @@ void ui_render(UIState* ui, const Palette* palette, const AppConfig* config) {
     if (!ui || !palette)
         return;
 
+    ui->active_palette = (Palette*)palette;
+    ui->active_config = config;
+
+    Uint64 now_ticks = SDL_GetTicks();
+    float dt_seconds = 1.0f / 60.0f;
+    if (ui->last_frame_ticks > 0 && now_ticks >= ui->last_frame_ticks) {
+        dt_seconds = (float)(now_ticks - ui->last_frame_ticks) / 1000.0f;
+        if (dt_seconds > 0.05f) {
+            dt_seconds = 0.05f;
+        }
+    }
+    ui->last_frame_ticks = now_ticks;
+    ui_update_inputs(ui, dt_seconds, false, false);
+
     SDL_Color bg_color = {config->background_color.r, config->background_color.g,
                           config->background_color.b, config->background_color.a};
     SDL_SetRenderDrawColor(ui->renderer, bg_color.r, bg_color.g, bg_color.b, bg_color.a);
     SDL_RenderClear(ui->renderer);
 
+    SDL_Color text_color = {config->text_color.r, config->text_color.g, config->text_color.b,
+                            config->text_color.a};
+    SDL_Color button_base = {config->button_color.r, config->button_color.g, config->button_color.b,
+                             config->button_color.a};
+    SDL_Color button_hover = {config->button_hover_color.r, config->button_hover_color.g,
+                              config->button_hover_color.b, config->button_hover_color.a};
+
     // Render swatch grid
     for (int row = 0; row < config->grid_rows; row++) {
         for (int col = 0; col < config->grid_cols; col++) {
             int index = row * config->grid_cols + col;
-            int x = config->grid_start_x + col * (config->swatch_size + config->swatch_border);
-            int y = config->grid_start_y + row * (config->swatch_size + config->swatch_border);
+            if (index >= UI_SWATCH_COUNT) {
+                continue;
+            }
+
+            UIInputElement* swatch_input = &ui->swatch_inputs[index];
+            int x = (int)swatch_input->bounds.x;
+            int y = (int)swatch_input->bounds.y;
 
             PaletteColor p_color = palette_get_color(palette, index);
             SDL_Color swatch_color = {p_color.r, p_color.g, p_color.b, p_color.a};
             ui_render_rect(ui, x, y, config->swatch_size, config->swatch_size, swatch_color);
 
-            if (index == ui->selected_swatch) {
-                SDL_Color selection_color = {config->selected_color.r, config->selected_color.g,
-                                             config->selected_color.b, config->selected_color.a};
-                ui_render_rect_outline(ui, x - 2, y - 2, config->swatch_size + 4,
-                                       config->swatch_size + 4, selection_color);
+            if (swatch_input->hover_anim_t > 0.01f) {
+                SDL_Color hover_outline = {255, 255, 255, (Uint8)(100 + 120 * swatch_input->hover_anim_t)};
+                ui_render_rect_outline(ui, x - 1, y - 1, config->swatch_size + 2,
+                                       config->swatch_size + 2, hover_outline);
             }
 
-            char index_str[3];
+            if (swatch_input->selected_anim_t > 0.01f) {
+                int expand = 2 + (int)(2.0f * swatch_input->selected_anim_t);
+                SDL_Color selection_color = {config->selected_color.r, config->selected_color.g,
+                                             config->selected_color.b,
+                                             (Uint8)(140 + 115 * swatch_input->selected_anim_t)};
+                ui_render_rect_outline(ui, x - expand, y - expand, config->swatch_size + expand * 2,
+                                       config->swatch_size + expand * 2, selection_color);
+            }
+
+            char index_str[4];
             snprintf(index_str, sizeof(index_str), "%d", index);
-            SDL_Color text_color = {config->text_color.r, config->text_color.g,
-                                    config->text_color.b, config->text_color.a};
             ui_render_text(ui, index_str, x + 2, y + 2, text_color);
         }
     }
@@ -293,28 +659,24 @@ void ui_render(UIState* ui, const Palette* palette, const AppConfig* config) {
     ui_render_rgba_controls(ui, palette, config);
 
     // Render action buttons
-    SDL_Color text_color = {config->text_color.r, config->text_color.g, config->text_color.b,
-                            config->text_color.a};
-    SDL_Color button_bg = {config->button_color.r, config->button_color.g, config->button_color.b,
-                           config->button_color.a};
+    const char* action_labels[UI_ACTION_BUTTON_COUNT] = {"Save (S)", "Reset (R)", "Load (L)"};
+    for (int i = 0; i < UI_ACTION_BUTTON_COUNT; i++) {
+        UIInputElement* btn = &ui->action_buttons[i];
+        SDL_Color button_bg = ui_blend_color(button_base, button_hover, btn->hover_anim_t);
+        if (btn->pressed) {
+            button_bg = ui_darken_color(button_bg, 0.85f);
+        }
 
-    int save_button_x = config->ui_panel_x + 10;
+        ui_render_rect(ui, (int)btn->bounds.x, (int)btn->bounds.y, (int)btn->bounds.w,
+                       (int)btn->bounds.h, button_bg);
+        ui_render_rect_outline(ui, (int)btn->bounds.x, (int)btn->bounds.y, (int)btn->bounds.w,
+                               (int)btn->bounds.h, (SDL_Color){96, 96, 96, 255});
+        ui_render_text(ui, action_labels[i], (int)btn->bounds.x + 5, (int)btn->bounds.y + 5,
+                       text_color);
+    }
+
     int action_button_y =
         config->ui_panel_y + config->ui_panel_height - config->action_button_height - 10;
-
-    ui_render_rect(ui, save_button_x, action_button_y, config->action_button_width,
-                   config->action_button_height, button_bg);
-    ui_render_text(ui, "Save (S)", save_button_x + 5, action_button_y + 5, text_color);
-
-    int reset_button_x = save_button_x + config->action_button_width + 10;
-    ui_render_rect(ui, reset_button_x, action_button_y, config->action_button_width,
-                   config->action_button_height, button_bg);
-    ui_render_text(ui, "Reset (R)", reset_button_x + 5, action_button_y + 5, text_color);
-
-    int load_button_x = reset_button_x + config->action_button_width + 10;
-    ui_render_rect(ui, load_button_x, action_button_y, config->action_button_width,
-                   config->action_button_height, button_bg);
-    ui_render_text(ui, "Load (L)", load_button_x + 5, action_button_y + 5, text_color);
 
     if (palette_is_modified(palette)) {
         SDL_Color red = {255, 0, 0, 255};
@@ -358,15 +720,23 @@ void ui_render(UIState* ui, const Palette* palette, const AppConfig* config) {
         ui_render_text(ui, "Save Palette", dialog_x + 10, dialog_y + 10, white);
         ui_render_text(ui, "Save changes to palette.dat?", dialog_x + 10, dialog_y + 30, white);
 
-        int button_y = dialog_y + 50;
-        int yes_button_x = dialog_x + 10;
-        int no_button_x = dialog_x + 120;
+        for (int i = 0; i < UI_DIALOG_BUTTON_COUNT; i++) {
+            UIInputElement* btn = &ui->save_dialog_buttons[i];
+            SDL_Color dialog_button_bg = ui_blend_color(button_base, button_hover, btn->hover_anim_t);
+            if (btn->pressed) {
+                dialog_button_bg = ui_darken_color(dialog_button_bg, 0.85f);
+            }
 
-        ui_render_rect(ui, yes_button_x, button_y, 80, 20, button_bg);
-        ui_render_text(ui, "Yes", yes_button_x + 25, button_y + 5, text_color);
+            ui_render_rect(ui, (int)btn->bounds.x, (int)btn->bounds.y, (int)btn->bounds.w,
+                           (int)btn->bounds.h, dialog_button_bg);
+            ui_render_rect_outline(ui, (int)btn->bounds.x, (int)btn->bounds.y, (int)btn->bounds.w,
+                                   (int)btn->bounds.h, (SDL_Color){96, 96, 96, 255});
+        }
 
-        ui_render_rect(ui, no_button_x, button_y, 80, 20, button_bg);
-        ui_render_text(ui, "No", no_button_x + 30, button_y + 5, text_color);
+        ui_render_text(ui, "Yes", (int)ui->save_dialog_buttons[0].bounds.x + 25,
+                       (int)ui->save_dialog_buttons[0].bounds.y + 5, text_color);
+        ui_render_text(ui, "No", (int)ui->save_dialog_buttons[1].bounds.x + 30,
+                       (int)ui->save_dialog_buttons[1].bounds.y + 5, text_color);
     }
 
     SDL_RenderPresent(ui->renderer);
@@ -626,7 +996,9 @@ void ui_render_text(UIState* ui, const char* text, int x, int y, SDL_Color color
     int len = (int)strlen(text);
     for (int i = 0; i < len && i < 32; i++) {
         int char_index = get_char_index(text[i]);
-        const uint8_t* pattern = font_patterns[char_index < 52 ? char_index : 0];
+        const uint8_t* pattern = font_patterns[(char_index >= 0 && char_index < GLYPH_COUNT)
+                                                   ? char_index
+                                                   : 0];
 
         // Draw character using bitmap pattern
         for (int row = 0; row < 7; row++) {
@@ -745,8 +1117,10 @@ void ui_render_rgba_controls(UIState* ui, const Palette* palette, const AppConfi
     PaletteColor current = palette_get_color(palette, ui->selected_swatch);
     SDL_Color text_color = {config->text_color.r, config->text_color.g, config->text_color.b,
                             config->text_color.a};
-    SDL_Color button_bg = {config->button_color.r, config->button_color.g, config->button_color.b,
-                           config->button_color.a};
+    SDL_Color button_base = {config->button_color.r, config->button_color.g, config->button_color.b,
+                             config->button_color.a};
+    SDL_Color button_hover = {config->button_hover_color.r, config->button_hover_color.g,
+                              config->button_hover_color.b, config->button_hover_color.a};
     SDL_Color value_bg = {config->background_color.r, config->background_color.g,
                           config->background_color.b, config->background_color.a};
 
@@ -766,14 +1140,31 @@ void ui_render_rgba_controls(UIState* ui, const Palette* palette, const AppConfi
         int btn3_x = btn2_x + config->button_width + 5;
         int btn4_x = btn3_x + config->button_width + 5;
 
+        UIInputElement* b1 = &ui->rgba_buttons[RGBA_BUTTON_INDEX(i, RGBA_OP_MINUS_10)];
+        UIInputElement* b2 = &ui->rgba_buttons[RGBA_BUTTON_INDEX(i, RGBA_OP_MINUS_1)];
+        UIInputElement* b3 = &ui->rgba_buttons[RGBA_BUTTON_INDEX(i, RGBA_OP_PLUS_1)];
+        UIInputElement* b4 = &ui->rgba_buttons[RGBA_BUTTON_INDEX(i, RGBA_OP_PLUS_10)];
+
+        SDL_Color b1_bg = ui_blend_color(button_base, button_hover, b1->hover_anim_t);
+        SDL_Color b2_bg = ui_blend_color(button_base, button_hover, b2->hover_anim_t);
+        SDL_Color b3_bg = ui_blend_color(button_base, button_hover, b3->hover_anim_t);
+        SDL_Color b4_bg = ui_blend_color(button_base, button_hover, b4->hover_anim_t);
+
+        if (b1->pressed)
+            b1_bg = ui_darken_color(b1_bg, 0.85f);
+        if (b2->pressed)
+            b2_bg = ui_darken_color(b2_bg, 0.85f);
+        if (b3->pressed)
+            b3_bg = ui_darken_color(b3_bg, 0.85f);
+        if (b4->pressed)
+            b4_bg = ui_darken_color(b4_bg, 0.85f);
+
         // -10 Button
-        ui_render_rect(ui, btn1_x, control_y, config->button_width, config->button_height,
-                       button_bg);
+        ui_render_rect(ui, btn1_x, control_y, config->button_width, config->button_height, b1_bg);
         ui_render_text(ui, "-10", btn1_x + 5, control_y + 5, text_color);
 
         // -1 Button
-        ui_render_rect(ui, btn2_x, control_y, config->button_width, config->button_height,
-                       button_bg);
+        ui_render_rect(ui, btn2_x, control_y, config->button_width, config->button_height, b2_bg);
         ui_render_text(ui, "-1", btn2_x + 8, control_y + 5, text_color);
 
         // Value Display
@@ -784,13 +1175,11 @@ void ui_render_rgba_controls(UIState* ui, const Palette* palette, const AppConfi
         ui_render_text(ui, val_str, val_x + 10, control_y + 5, text_color);
 
         // +1 Button
-        ui_render_rect(ui, btn3_x, control_y, config->button_width, config->button_height,
-                       button_bg);
+        ui_render_rect(ui, btn3_x, control_y, config->button_width, config->button_height, b3_bg);
         ui_render_text(ui, "+1", btn3_x + 8, control_y + 5, text_color);
 
         // +10 Button
-        ui_render_rect(ui, btn4_x, control_y, config->button_width, config->button_height,
-                       button_bg);
+        ui_render_rect(ui, btn4_x, control_y, config->button_width, config->button_height, b4_bg);
         ui_render_text(ui, "+10", btn4_x + 5, control_y + 5, text_color);
     }
 }

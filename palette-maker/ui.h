@@ -2,6 +2,7 @@
 #define UI_H
 
 #include <SDL3/SDL.h>
+#include "ui_input.h"
 #include "config.h"
 #include "palette.h"
 
@@ -17,6 +18,12 @@
 #define COLOR_DIALOG_BG {0, 0, 0, 200}
 
 // --- UI Layout & Sizing ---
+#define UI_SWATCH_COUNT 16
+#define UI_ACTION_BUTTON_COUNT 3
+#define UI_RGBA_CHANNEL_COUNT 4
+#define UI_RGBA_BUTTONS_PER_CHANNEL 4
+#define UI_RGBA_BUTTON_COUNT (UI_RGBA_CHANNEL_COUNT * UI_RGBA_BUTTONS_PER_CHANNEL)
+#define UI_DIALOG_BUTTON_COUNT 2
 
 // Swatch Grid
 #define GRID_COLS 4
@@ -118,6 +125,15 @@ typedef struct {
     bool mouse_down;
     Uint32 last_click_time;  // For double-click detection
     int last_click_swatch;   // Last clicked swatch for double-click
+    Uint64 last_frame_ticks;
+
+    UIInputElement swatch_inputs[UI_SWATCH_COUNT];
+    UIInputElement action_buttons[UI_ACTION_BUTTON_COUNT];
+    UIInputElement rgba_buttons[UI_RGBA_BUTTON_COUNT];
+    UIInputElement save_dialog_buttons[UI_DIALOG_BUTTON_COUNT];
+
+    Palette* active_palette;
+    const AppConfig* active_config;
 
 } UIState;
 
