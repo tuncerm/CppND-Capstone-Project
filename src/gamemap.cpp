@@ -2,7 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include "tempmap.cpp"
+#include "tempmap.h"
 
 int GameMap::RowCount() const {
     return static_cast<int>(_map.size());

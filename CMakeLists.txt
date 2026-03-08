@@ -86,6 +86,7 @@ set(SOURCES
     src/enemy.cpp
     src/player.cpp
     src/AICentral.cpp
+    src/tempmap.cpp
     src/path_resolver.cpp
 )
 

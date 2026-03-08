@@ -187,6 +187,7 @@ void tile_sheet_render(TileSheet* sheet, SDL_Renderer* renderer, int x, int y) {
  */
 int tile_sheet_handle_input(TileSheet* sheet, int panel_x, int panel_y, int mouse_x, int mouse_y,
                             bool clicked, bool double_clicked) {
+    (void)double_clicked;
     if (!sheet)
         return -1;
 

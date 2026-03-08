@@ -36,8 +36,6 @@ TEST_F(DoubleClickTest, InitializationWithNullPointer) {
 // ===== Basic Double Click Detection Tests =====
 
 TEST_F(DoubleClickTest, SingleClickDetection) {
-    Uint32 current_time = SDL_GetTicks();
-
     // Single click should not trigger double-click
     bool double_clicked = double_click_check(&detector, 1);
     EXPECT_FALSE(double_clicked);
@@ -179,8 +177,6 @@ TEST_F(DoubleClickTest, ZeroTimestamp) {
 }
 
 TEST_F(DoubleClickTest, BackwardsTime) {
-    Uint32 current_time = SDL_GetTicks();
-
     // First click
     double_click_check(&detector, 1);
 
@@ -194,8 +190,6 @@ TEST_F(DoubleClickTest, BackwardsTime) {
 
 TEST_F(DoubleClickTest, OverflowTime) {
     // Test with very large timestamp values
-    Uint32 large_time = UINT32_MAX - 1000;
-
     double_click_check(&detector, 1);
     EXPECT_TRUE(double_click_has_previous(&detector));
 
@@ -207,8 +201,6 @@ TEST_F(DoubleClickTest, OverflowTime) {
 // ===== Error Handling Tests =====
 
 TEST_F(DoubleClickTest, NullPointerHandling) {
-    Uint32 current_time = SDL_GetTicks();
-
     // All functions should handle null pointer gracefully
     EXPECT_FALSE(double_click_check(nullptr, 1));
     EXPECT_FALSE(double_click_has_previous(nullptr));
@@ -217,8 +209,6 @@ TEST_F(DoubleClickTest, NullPointerHandling) {
 // ===== Performance Tests =====
 
 TEST_F(DoubleClickTest, UpdatePerformance) {
-    Uint32 current_time = SDL_GetTicks();
-
     auto start = std::chrono::high_resolution_clock::now();
 
     // Many rapid updates

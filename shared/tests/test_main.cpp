@@ -14,7 +14,7 @@ class SharedComponentsTestEnvironment : public ::testing::Environment {
    public:
     void SetUp() override {
         // Initialize SDL3 for tests that need it
-        if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        if (!SDL_Init(SDL_INIT_VIDEO)) {
             GTEST_FATAL_FAILURE_("Failed to initialize SDL3 for testing");
         }
 

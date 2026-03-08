@@ -42,12 +42,13 @@ TEST_F(SDLContextTest, SimpleInitialization) {
 }
 
 TEST_F(SDLContextTest, ConfigurationInitialization) {
-    SDLContextConfig config = {.title = "Config Test",
-                               .width = 800,
-                               .height = 600,
-                               .resizable = true,
-                               .vsync = true,
-                               .fullscreen = false};
+    SDLContextConfig config = {};
+    config.title = "Config Test";
+    config.width = 800;
+    config.height = 600;
+    config.resizable = true;
+    config.vsync = true;
+    config.fullscreen = false;
 
     EXPECT_TRUE(sdl_init_context(&test_context, &config));
     EXPECT_TRUE(sdl_context_is_ready(&test_context));
@@ -317,7 +318,8 @@ TEST_F(SDLContextTest, RenderingPerformance) {
     auto start = std::chrono::high_resolution_clock::now();
 
     for (int i = 0; i < 100; ++i) {
-        sdl_clear_screen(&test_context, {i % 256, (i * 2) % 256, (i * 3) % 256, 255});
+        sdl_clear_screen(&test_context,
+                         {(Uint8)(i % 256), (Uint8)((i * 2) % 256), (Uint8)((i * 3) % 256), 255});
         sdl_present(&test_context);
     }
 

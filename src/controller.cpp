@@ -17,6 +17,7 @@ void Controller::ChangeDirection(Player& player, Player::Direction input) {
 }
 
 void Controller::FireProjectile(Player& player) const {
+    (void)player;
     std::cout << "Fire in the hole!" << std::endl;
 }
 

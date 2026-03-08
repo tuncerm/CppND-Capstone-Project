@@ -12,13 +12,13 @@
 Renderer::Renderer(const int grid_size, const int grid_width, const int grid_height,
                    std::shared_ptr<GameMap> map_ptr, SDLContext* context,
                    const std::string& config_path)
-    : _map_ptr(map_ptr),
-      _context(context),
-      _grid_size(grid_size),
+    : _context(context),
+      _map_ptr(map_ptr),
       _screen_width(grid_size * grid_width),
       _screen_height(grid_size * grid_height),
       _grid_width(grid_width),
-      _grid_height(grid_height) {
+      _grid_height(grid_height),
+      _grid_size(grid_size) {
     // Initialize configuration for colors and character rendering
     config_manager_init(&_config, "Character Game Renderer");
 

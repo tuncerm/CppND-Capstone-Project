@@ -34,7 +34,7 @@ bool sdl_init_context(SDLContext* ctx, const SDLContextConfig* config) {
 
     // Initialize SDL video only when the app/test harness has not already done so.
     if (!sdl_is_subsystem_initialized(SDL_INIT_VIDEO)) {
-        if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        if (!SDL_Init(SDL_INIT_VIDEO)) {
             printf("Error: Could not initialize SDL: %s\n", SDL_GetError());
             return false;
         }

@@ -283,11 +283,11 @@ TEST_F(PaletteManagerTest, PaletteEquality) {
     EXPECT_TRUE(palette_manager_equals(&palette1, &palette2));
 
     // Modify one palette
-    palette_set_color(&palette1, 0, palette_make_color(123, 456, 789, 255));
+    palette_set_color(&palette1, 0, palette_make_color(123, 200, 210, 255));
     EXPECT_FALSE(palette_manager_equals(&palette1, &palette2));
 
     // Make them equal again
-    palette_set_color(&palette2, 0, palette_make_color(123, 456, 789, 255));
+    palette_set_color(&palette2, 0, palette_make_color(123, 200, 210, 255));
     EXPECT_TRUE(palette_manager_equals(&palette1, &palette2));
 }
 
@@ -338,7 +338,7 @@ TEST_F(PaletteManagerTest, SetRawData) {
 }
 
 TEST_F(PaletteManagerTest, SetRawDataInvalidSize) {
-    uint8_t test_data[32];  // Too small
+    uint8_t test_data[32] = {0};  // Too small
     EXPECT_FALSE(palette_manager_set_raw_data(&palette_manager, test_data, 32));
     EXPECT_FALSE(palette_manager_is_modified(&palette_manager));
 }
