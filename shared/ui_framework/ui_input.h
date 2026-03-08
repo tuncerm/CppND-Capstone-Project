@@ -14,6 +14,14 @@ typedef void (*UIInputOnHover)(int id, bool hovered, void* userdata);
 typedef void (*UIInputOnSelected)(int id, bool selected, void* userdata);
 
 typedef struct {
+    float x;
+    float y;
+    bool down;
+    bool pressed;
+    bool released;
+} UIMouseState;
+
+typedef struct {
     int id;
     SDL_FRect bounds;
     bool enabled;
@@ -48,6 +56,9 @@ void ui_input_set_value(UIInputElement* element, float value);
 bool ui_input_contains(const UIInputElement* element, float x, float y);
 bool ui_input_update(UIInputElement* element, float dt_seconds, float mouse_x, float mouse_y,
                      bool mouse_down, bool mouse_pressed, bool mouse_released);
+bool ui_input_update_with_mouse(UIInputElement* element, float dt_seconds, const UIMouseState* mouse);
+void ui_input_update_array(UIInputElement* elements, int count, bool enabled, float dt_seconds,
+                           const UIMouseState* mouse);
 
 #ifdef __cplusplus
 }

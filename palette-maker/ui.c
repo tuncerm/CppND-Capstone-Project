@@ -298,30 +298,17 @@ static void ui_update_inputs(UIState* ui, float dt_seconds, bool mouse_pressed, 
     const bool interaction_enabled = !ui->show_save_dialog && !ui->color_picker_open;
     const bool rgba_enabled = !ui->show_save_dialog;
     const bool dialog_enabled = ui->show_save_dialog;
+    const UIMouseState mouse = {ui->mouse_x, ui->mouse_y, ui->mouse_down, mouse_pressed,
+                                mouse_released};
 
-    for (int i = 0; i < UI_ACTION_BUTTON_COUNT; i++) {
-        ui_input_set_enabled(&ui->action_buttons[i], interaction_enabled);
-        ui_input_update(&ui->action_buttons[i], dt_seconds, ui->mouse_x, ui->mouse_y, ui->mouse_down,
-                        mouse_pressed, mouse_released);
-    }
-
-    for (int i = 0; i < UI_SWATCH_COUNT; i++) {
-        ui_input_set_enabled(&ui->swatch_inputs[i], interaction_enabled);
-        ui_input_update(&ui->swatch_inputs[i], dt_seconds, ui->mouse_x, ui->mouse_y, ui->mouse_down,
-                        mouse_pressed, mouse_released);
-    }
-
-    for (int i = 0; i < UI_RGBA_BUTTON_COUNT; i++) {
-        ui_input_set_enabled(&ui->rgba_buttons[i], rgba_enabled);
-        ui_input_update(&ui->rgba_buttons[i], dt_seconds, ui->mouse_x, ui->mouse_y, ui->mouse_down,
-                        mouse_pressed, mouse_released);
-    }
-
-    for (int i = 0; i < UI_DIALOG_BUTTON_COUNT; i++) {
-        ui_input_set_enabled(&ui->save_dialog_buttons[i], dialog_enabled);
-        ui_input_update(&ui->save_dialog_buttons[i], dt_seconds, ui->mouse_x, ui->mouse_y,
-                        ui->mouse_down, mouse_pressed, mouse_released);
-    }
+    ui_input_update_array(ui->action_buttons, UI_ACTION_BUTTON_COUNT, interaction_enabled,
+                          dt_seconds, &mouse);
+    ui_input_update_array(ui->swatch_inputs, UI_SWATCH_COUNT, interaction_enabled, dt_seconds,
+                          &mouse);
+    ui_input_update_array(ui->rgba_buttons, UI_RGBA_BUTTON_COUNT, rgba_enabled, dt_seconds,
+                          &mouse);
+    ui_input_update_array(ui->save_dialog_buttons, UI_DIALOG_BUTTON_COUNT, dialog_enabled,
+                          dt_seconds, &mouse);
 }
 
 /**

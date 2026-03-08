@@ -166,3 +166,24 @@ bool ui_input_update(UIInputElement* element, float dt_seconds, float mouse_x, f
 
     return clicked;
 }
+
+bool ui_input_update_with_mouse(UIInputElement* element, float dt_seconds, const UIMouseState* mouse) {
+    if (!mouse) {
+        return false;
+    }
+
+    return ui_input_update(element, dt_seconds, mouse->x, mouse->y, mouse->down, mouse->pressed,
+                           mouse->released);
+}
+
+void ui_input_update_array(UIInputElement* elements, int count, bool enabled, float dt_seconds,
+                           const UIMouseState* mouse) {
+    if (!elements || count <= 0 || !mouse) {
+        return;
+    }
+
+    for (int i = 0; i < count; i++) {
+        ui_input_set_enabled(&elements[i], enabled);
+        ui_input_update_with_mouse(&elements[i], dt_seconds, mouse);
+    }
+}

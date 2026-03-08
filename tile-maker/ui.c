@@ -272,61 +272,28 @@ int ui_handle_mouse(UIState* ui, int mouse_x, int mouse_y, bool clicked, int but
 
     const bool left_click = clicked && button == SDL_BUTTON_LEFT;
     const float dt_seconds = 1.0f / 60.0f;
+    const UIMouseState passive_mouse = {(float)mouse_x, (float)mouse_y, false, false, false};
+    const UIMouseState click_mouse = {(float)mouse_x, (float)mouse_y, left_click, left_click,
+                                      left_click};
     ui->pending_action = 0;
 
     if (ui->show_quit_dialog) {
-        for (int i = 0; i < 16; i++) {
-            ui_input_set_enabled(&ui->palette_swatches[i], false);
-            ui_input_update(&ui->palette_swatches[i], dt_seconds, (float)mouse_x, (float)mouse_y,
-                            false, false, false);
-        }
-
-        ui_input_set_enabled(&ui->save_button.input, false);
-        ui_input_update(&ui->save_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, false,
-                        false, false);
-        ui_input_set_enabled(&ui->load_button.input, false);
-        ui_input_update(&ui->load_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, false,
-                        false, false);
-        ui_input_set_enabled(&ui->new_button.input, false);
-        ui_input_update(&ui->new_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, false,
-                        false, false);
-        ui_input_set_enabled(&ui->quit_button.input, false);
-        ui_input_update(&ui->quit_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, false,
-                        false, false);
-
-        ui_input_set_enabled(&ui->quit_yes_button.input, true);
-        ui_input_update(&ui->quit_yes_button.input, dt_seconds, (float)mouse_x, (float)mouse_y,
-                        left_click, left_click, left_click);
-
-        ui_input_set_enabled(&ui->quit_no_button.input, true);
-        ui_input_update(&ui->quit_no_button.input, dt_seconds, (float)mouse_x, (float)mouse_y,
-                        left_click, left_click, left_click);
+        ui_input_update_array(ui->palette_swatches, 16, false, dt_seconds, &passive_mouse);
+        ui_input_update_array(&ui->save_button.input, 1, false, dt_seconds, &passive_mouse);
+        ui_input_update_array(&ui->load_button.input, 1, false, dt_seconds, &passive_mouse);
+        ui_input_update_array(&ui->new_button.input, 1, false, dt_seconds, &passive_mouse);
+        ui_input_update_array(&ui->quit_button.input, 1, false, dt_seconds, &passive_mouse);
+        ui_input_update_array(&ui->quit_yes_button.input, 1, true, dt_seconds, &click_mouse);
+        ui_input_update_array(&ui->quit_no_button.input, 1, true, dt_seconds, &click_mouse);
 
         return ui->pending_action;
     }
 
-    for (int i = 0; i < 16; i++) {
-        ui_input_set_enabled(&ui->palette_swatches[i], true);
-        ui_input_update(&ui->palette_swatches[i], dt_seconds, (float)mouse_x, (float)mouse_y,
-                        left_click, left_click, left_click);
-    }
-
-    ui_input_set_enabled(&ui->save_button.input, true);
-    ui_input_update(&ui->save_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, left_click,
-                    left_click, left_click);
-
-    ui_input_set_enabled(&ui->load_button.input, true);
-    ui_input_update(&ui->load_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, left_click,
-                    left_click, left_click);
-
-    ui_input_set_enabled(&ui->new_button.input, true);
-    ui_input_update(&ui->new_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, left_click,
-                    left_click, left_click);
-
-    ui_input_set_enabled(&ui->quit_button.input, true);
-    ui_input_update(&ui->quit_button.input, dt_seconds, (float)mouse_x, (float)mouse_y, left_click,
-                    left_click, left_click);
-
+    ui_input_update_array(ui->palette_swatches, 16, true, dt_seconds, &click_mouse);
+    ui_input_update_array(&ui->save_button.input, 1, true, dt_seconds, &click_mouse);
+    ui_input_update_array(&ui->load_button.input, 1, true, dt_seconds, &click_mouse);
+    ui_input_update_array(&ui->new_button.input, 1, true, dt_seconds, &click_mouse);
+    ui_input_update_array(&ui->quit_button.input, 1, true, dt_seconds, &click_mouse);
     ui_input_set_enabled(&ui->quit_yes_button.input, false);
     ui_input_set_enabled(&ui->quit_no_button.input, false);
 
