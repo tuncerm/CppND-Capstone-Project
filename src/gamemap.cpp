@@ -1,6 +1,7 @@
 #include "gamemap.h"
 #include <cstdlib>
 #include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -10,6 +11,7 @@
 namespace {
 constexpr int kSubtilesPerCell = GameMap::kSubtilesPerCell;
 constexpr int kSubtilesPerAxis = GameMap::kSubtilesPerAxis;
+constexpr std::streamoff kMapDataOffset = 64;
 constexpr std::uint8_t kHealthMask = 0x07u;
 constexpr int kDestructionShift = 3;
 constexpr std::uint8_t kDestructionMask = 0x07u;
@@ -500,8 +502,16 @@ bool GameMap::DamageAtWorldPosition(int world_x, int world_y) {
 
 GameMap::GameMap(int grid_height, int grid_width, int grid_size, const std::string& map_path)
     : _height(grid_height), _width(grid_width), _size(grid_size) {
-    std::ifstream filestream(map_path);
+    std::ifstream filestream(map_path, std::ios::binary);
     if (filestream.is_open()) {
+        char magic[4] = {0};
+        filestream.read(magic, sizeof(magic));
+        const bool has_embedded_header =
+            filestream.gcount() == static_cast<std::streamsize>(sizeof(magic)) &&
+            std::memcmp(magic, "MMD1", sizeof(magic)) == 0;
+        filestream.clear();
+        filestream.seekg(has_embedded_header ? kMapDataOffset : 0, std::ios::beg);
+
         std::string line;
         while (std::getline(filestream, line)) {
             std::istringstream ls(line);
