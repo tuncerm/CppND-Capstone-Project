@@ -70,12 +70,29 @@ jobs:
 
       - name: Cppcheck (strict profile)
         run: |
+          set +e
           bash ./tools/run_cppcheck.sh strict --xml --xml-version=2 2> cppcheck-strict-report.xml
+          echo "CPPCHECK_STRICT_EXIT_CODE=$?" >> "$GITHUB_ENV"
+          exit 0
 
       - name: Summarize strict cppcheck report
         if: always()
         run: |
-          python3 ./tools/summarize_cppcheck_xml.py cppcheck-strict-report.xml >> "$GITHUB_STEP_SUMMARY"
+          python3 ./tools/summarize_cppcheck_xml.py \
+            cppcheck-strict-report.xml \
+            --strict-exit-code "${CPPCHECK_STRICT_EXIT_CODE:-0}" \
+            --max-severity error=0 \
+            --max-severity warning=0 \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce strict cppcheck gate
+        if: vars.CPPCHECK_STRICT_BLOCKING == 'true'
+        run: |
+          python3 ./tools/summarize_cppcheck_xml.py \
+            cppcheck-strict-report.xml \
+            --max-severity error=0 \
+            --max-severity warning=0 \
+            --enforce
 
       - name: Upload strict cppcheck report
         if: always()

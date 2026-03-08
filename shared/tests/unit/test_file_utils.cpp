@@ -5,7 +5,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <atomic>
 #include <filesystem>
+#include <random>
 #include "../utils/test_helpers.h"
 #include "utilities/file_utils.h"
 
@@ -13,7 +15,12 @@ class FileUtilsTest : public ::testing::Test {
    protected:
     void SetUp() override {
         // Create temporary test directory
-        test_dir = std::filesystem::temp_directory_path() / "shared_components_test";
+        static std::atomic<std::uint64_t> dir_counter{0};
+        static const std::uint64_t run_tag = std::mt19937_64(std::random_device{}())();
+        const std::uint64_t id = dir_counter.fetch_add(1, std::memory_order_relaxed);
+        test_dir = std::filesystem::temp_directory_path() /
+                   ("shared_components_test_dir_" + std::to_string(run_tag) + "_" +
+                    std::to_string(id));
         std::filesystem::create_directories(test_dir);
     }
 

@@ -43,6 +43,8 @@ Follow-up TODO implementation and cleanup are complete:
 4. Test portability and warning cleanup
    - Replaced C++20-only designated initialization usage in tests.
    - Reduced warning noise (`overflow`, `narrowing`, maybe-uninitialized, unused locals) without behavior changes.
+   - Hardened file utility tests by isolating temp file/directory paths per run and per call.
+   - Hardened config manager tests by isolating config save/load files in unique temp directories.
 5. CI workflow improvements
    - Split CI builds by target family (`PlayGame`, `PaletteMaker`, `TileMaker`).
    - Isolated shared tests + analysis job.
@@ -51,6 +53,7 @@ Follow-up TODO implementation and cleanup are complete:
    - Added warnings-as-errors enforcement option (`ENABLE_WARNINGS_AS_ERRORS`) and enabled it in CI.
    - Centralized cppcheck invocation via `tools/run_cppcheck.sh` and upload strict cppcheck report artifacts in PR CI.
    - Added strict cppcheck XML summary generation for CI step summaries (`tools/summarize_cppcheck_xml.py`).
+   - Added strict cppcheck severity gate support (blocking mode enforces `error=0`, `warning=0`).
 
 ## Current verification snapshot
 - Build: `cmake --build build --clean-first` passes.

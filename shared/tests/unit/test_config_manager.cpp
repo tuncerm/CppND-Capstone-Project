@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
+#include <cstdint>
+#include <filesystem>
 #include <fstream>
+#include <random>
 #include <string>
 #include "config/config_manager.h"
 #include "error_handler/error_handler.h"
@@ -9,8 +12,16 @@ class ConfigManagerTest : public ::testing::Test {
     void SetUp() override {
         config_manager_init(&config, "Test Application");
 
+        // Isolate test artifacts under a unique temporary directory.
+        std::mt19937_64 rng(std::random_device{}());
+        const std::uint64_t token = rng();
+        test_dir =
+            std::filesystem::temp_directory_path() / ("config_manager_test_" + std::to_string(token));
+        std::filesystem::create_directories(test_dir);
+        config_path = (test_dir / "test_config.json").string();
+
         // Create a test configuration file
-        std::ofstream test_file("test_config.json");
+        std::ofstream test_file(config_path);
         test_file << R"({
             "_meta": {
                 "application": "Test Application",
@@ -36,11 +47,15 @@ class ConfigManagerTest : public ::testing::Test {
     }
 
     void TearDown() override {
-        // Clean up test file
-        std::remove("test_config.json");
+        if (!test_dir.empty()) {
+            std::error_code ec;
+            std::filesystem::remove_all(test_dir, ec);
+        }
     }
 
     ConfigManager config;
+    std::filesystem::path test_dir;
+    std::string config_path;
 };
 
 TEST_F(ConfigManagerTest, InitializationTest) {
@@ -85,7 +100,7 @@ TEST_F(ConfigManagerTest, LoadConfigurationTest) {
                           config_make_float(0.5), false);
 
     // Load configuration
-    EXPECT_TRUE(config_manager_load(&config, "test_config.json"));
+    EXPECT_TRUE(config_manager_load(&config, config_path.c_str()));
     EXPECT_TRUE(config.is_loaded);
     EXPECT_FALSE(ErrorHandler_HasError());
 }
@@ -106,7 +121,7 @@ TEST_F(ConfigManagerTest, GetConfigurationValuesTest) {
     config_register_entry(&config, "performance", "quality", CONFIG_TYPE_FLOAT,
                           config_make_float(0.5), false);
 
-    config_manager_load(&config, "test_config.json");
+    config_manager_load(&config, config_path.c_str());
 
     // Test getting values
     EXPECT_EQ(config_get_int(&config, "display", "width", 800), 1024);
@@ -147,7 +162,7 @@ TEST_F(ConfigManagerTest, ValidationTest) {
                           true);
 
     // Load valid configuration
-    EXPECT_TRUE(config_manager_load(&config, "test_config.json"));
+    EXPECT_TRUE(config_manager_load(&config, config_path.c_str()));
     EXPECT_TRUE(config_manager_validate(&config));
     EXPECT_FALSE(ErrorHandler_HasError());
 }
@@ -201,10 +216,11 @@ TEST_F(ConfigManagerTest, SaveConfigurationTest) {
                           config_make_string("Test"), false);
 
     // Save configuration
-    EXPECT_TRUE(config_manager_save(&config, "test_save.json"));
+    std::string save_path = (test_dir / "test_save.json").string();
+    EXPECT_TRUE(config_manager_save(&config, save_path.c_str()));
 
     // Verify file was created and has content
-    std::ifstream saved_file("test_save.json");
+    std::ifstream saved_file(save_path);
     EXPECT_TRUE(saved_file.good());
 
     std::string content((std::istreambuf_iterator<char>(saved_file)),
@@ -213,5 +229,4 @@ TEST_F(ConfigManagerTest, SaveConfigurationTest) {
     EXPECT_TRUE(content.find("\"width\": 800") != std::string::npos);
 
     saved_file.close();
-    std::remove("test_save.json");
 }

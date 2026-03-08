@@ -3,9 +3,40 @@
  */
 
 #include "test_helpers.h"
+#include <atomic>
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
+#include <random>
+
+namespace {
+struct TempRunDirectoryContext {
+    std::filesystem::path path;
+
+    TempRunDirectoryContext() {
+        std::filesystem::path base = std::filesystem::temp_directory_path();
+        std::mt19937_64 rng(std::random_device{}());
+        std::uint64_t token = rng();
+        path = base / ("shared_components_test_" + std::to_string(token));
+        std::filesystem::create_directories(path);
+    }
+
+    ~TempRunDirectoryContext() {
+        if (path.empty()) {
+            return;
+        }
+        std::error_code ec;
+        std::filesystem::remove_all(path, ec);
+    }
+};
+
+const std::filesystem::path& GetTempRunDirectory() {
+    static const TempRunDirectoryContext context;
+    return context.path;
+}
+}  // namespace
 
 // ===== Test Fixture Implementations =====
 
@@ -61,8 +92,10 @@ void PaletteManagerTestFixture::TearDown() {
 // ===== Test Utility Implementations =====
 
 std::string CreateTempTestFile(const char* filename, const char* content) {
-    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    std::filesystem::path file_path = temp_dir / filename;
+    static std::atomic<std::uint64_t> file_counter{0};
+    const std::uint64_t id = file_counter.fetch_add(1, std::memory_order_relaxed);
+    const std::string unique_name = std::to_string(id) + "_" + (filename ? filename : "temp.dat");
+    std::filesystem::path file_path = GetTempRunDirectory() / unique_name;
 
     std::ofstream file(file_path);
     if (file.is_open()) {

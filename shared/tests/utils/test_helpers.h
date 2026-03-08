@@ -69,7 +69,7 @@ class PaletteManagerTestFixture : public ::testing::Test {
  * Create a temporary test file with specified content
  * @param filename Filename for temporary file
  * @param content File content
- * @return Full path to created file
+ * @return Full path to created file (unique per test process and call)
  */
 std::string CreateTempTestFile(const char* filename, const char* content);
 
