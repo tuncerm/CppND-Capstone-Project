@@ -54,10 +54,15 @@ bool sdl_init_context(SDLContext* ctx, const SDLContextConfig* config) {
 
     ctx->renderer = SDL_CreateRenderer(ctx->window, renderer_name);
     if (!ctx->renderer) {
-        printf("Error: Could not create renderer: %s\n", SDL_GetError());
-        SDL_DestroyWindow(ctx->window);
-        SDL_Quit();
-        return false;
+        printf("Warning: Could not create '%s' renderer, falling back to default: %s\n",
+               renderer_name ? renderer_name : "default", SDL_GetError());
+        ctx->renderer = SDL_CreateRenderer(ctx->window, NULL);
+        if (!ctx->renderer) {
+            printf("Error: Could not create default renderer: %s\n", SDL_GetError());
+            SDL_DestroyWindow(ctx->window);
+            SDL_Quit();
+            return false;
+        }
     }
 
     // Set logical presentation for consistent UI scaling

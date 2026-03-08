@@ -32,6 +32,21 @@ void Game::Run(Controller const& controller, Renderer& renderer,
     int frame_count = 0;
     bool running = true;
 
+    // Pre-game loop for "Press any key to start"
+    bool game_started = false;
+    while (!game_started && running) {
+        SDL_Event e;
+        while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_EVENT_QUIT) {
+                running = false;
+            } else if (e.type == SDL_EVENT_KEY_DOWN) {
+                game_started = true;
+            }
+        }
+        renderer.Render(player, enemy);
+        SDL_DelayNS(10000000);  // 10ms delay
+    }
+
     while (running) {
         frame_start = SDL_GetTicksMS();
 
