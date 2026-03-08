@@ -34,6 +34,33 @@ typedef struct {
     char palette_file_path[CONFIG_MAX_PATH_LENGTH];
 } AppState;
 
+static bool file_exists(const char* path) {
+    if (!path || path[0] == '\0') {
+        return false;
+    }
+
+    FILE* f = fopen(path, "rb");
+    if (!f) {
+        return false;
+    }
+    fclose(f);
+    return true;
+}
+
+static const char* resolve_tilemaker_config_path(void) {
+    static const char* candidates[] = {"config/tile_maker_config.json",
+                                       "../config/tile_maker_config.json",
+                                       "tile_maker_config.json"};
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+        if (file_exists(candidates[i])) {
+            return candidates[i];
+        }
+    }
+
+    // Fall back to default search location; config manager will use defaults if missing.
+    return candidates[0];
+}
+
 static void app_resolve_file_path(char* out, size_t out_size, const char* configured,
                                   const char* fallback) {
     if (!out || out_size == 0 || !fallback) {
@@ -83,7 +110,8 @@ bool app_init(AppState* app) {
                           config_make_string("palette.dat"), false);
 
     // Load configuration file
-    if (!config_manager_load(&app->config, "config/tile_maker_config.json")) {
+    const char* config_path = resolve_tilemaker_config_path();
+    if (!config_manager_load(&app->config, config_path)) {
         printf("Warning: Failed to load configuration file, using defaults\n");
         if (ErrorHandler_HasError()) {
             const Error_t* err = ErrorHandler_Get();
@@ -110,6 +138,7 @@ bool app_init(AppState* app) {
                           configured_palette_file, "palette.dat");
 
     printf("Starting Tile Maker with configuration:\n");
+    printf("  Config file: %s\n", config_path);
     printf("  Window: %dx%d\n", window_width, window_height);
     printf("  Title: %s\n", window_title);
     printf("  Tiles file: %s\n", app->tiles_file_path);

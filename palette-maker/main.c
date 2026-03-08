@@ -5,6 +5,33 @@
 #include "palette.h"
 #include "ui.h"
 
+static bool file_exists(const char* path) {
+    if (!path || path[0] == '\0') {
+        return false;
+    }
+
+    FILE* f = fopen(path, "rb");
+    if (!f) {
+        return false;
+    }
+    fclose(f);
+    return true;
+}
+
+static const char* resolve_palette_config_path(void) {
+    static const char* candidates[] = {"config/palette_maker_config.json",
+                                       "../config/palette_maker_config.json",
+                                       "palette_maker_config.json"};
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+        if (file_exists(candidates[i])) {
+            return candidates[i];
+        }
+    }
+
+    // Fall back to default search location; loader will apply defaults if missing.
+    return candidates[0];
+}
+
 /**
  * Main application entry point
  * Initializes SDL, creates UI, and runs the main event loop
@@ -15,7 +42,8 @@ int main(int argc, char* argv[]) {
 
     // Load configuration
     AppConfig config;
-    if (!load_app_config(&config, "../config/palette_maker_config.json")) {
+    const char* config_path = resolve_palette_config_path();
+    if (!load_app_config(&config, config_path)) {
         fprintf(stderr, "FATAL: Could not load application configuration.\n");
         return 1;
     }
@@ -37,6 +65,7 @@ int main(int argc, char* argv[]) {
     printf("  - ESC: Close dialogs or quit\n");
     printf("  - Enter: Confirm dialog actions\n");
     printf("\n");
+    printf("Using config file: %s\n", config_path);
 
     const char* palette_file = (config.default_file[0] != '\0') ? config.default_file : "palette.dat";
     printf("Using palette file: %s\n", palette_file);
