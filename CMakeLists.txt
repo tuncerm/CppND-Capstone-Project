@@ -77,6 +77,7 @@ add_subdirectory(shared)
 # Add palette-maker and tile-maker subdirectories
 add_subdirectory(palette-maker)
 add_subdirectory(tile-maker)
+add_subdirectory(map-maker)
 
 # Find SDL3 with better cross-platform support
 find_package(SDL3 REQUIRED)
