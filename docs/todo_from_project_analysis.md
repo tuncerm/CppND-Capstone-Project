@@ -7,6 +7,8 @@ Closed after implementation pass (`2026-03-08`).
 - Runtime/test warning debt identified in follow-up has been addressed.
 - CI is now split by target family with an additional non-blocking strict cppcheck profile for PRs.
 
+Use this file as a completion log unless new analysis reopens items.
+
 ## P0 - Path and runtime determinism
 - [x] Replace relative-only path probing in `src/path_resolver.cpp` with executable/base-path anchored resolution.
 - [x] Keep config/map path fallback behavior, but make base directory explicit and deterministic.

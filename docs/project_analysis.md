@@ -1,7 +1,7 @@
-# Project Analysis Report (2026-03-07)
+# Project Analysis Report
 
 ## Document status
-This file is now a cleaned historical baseline.
+This file tracks the high-level analysis baseline and closure status.
 
 - Baseline analysis date: `2026-03-07`
 - Last status refresh: `2026-03-08`
@@ -17,7 +17,7 @@ The original analysis identified major issues across:
 - Build/test workflow gaps (root `ctest`, CI, static analysis)
 
 ## Resolution status (as of 2026-03-08)
-All checklist items from the follow-up TODO document are now closed, including:
+All follow-up checklist items are closed, including:
 
 - P0 correctness fixes (`Character`, `GameMap`, `AICentral`, startup map validation)
 - P1 contract/test-stability alignment (`SDL` lifecycle policy, utility contracts)
@@ -34,16 +34,14 @@ Validation snapshot after these updates:
 - Keep monitoring warning drift as code evolves.
 - Review strict cppcheck PR output periodically and promote stable rules to blocking checks.
 
-## Follow-up Analysis (2026-03-08)
+## Follow-up implementation closure (2026-03-08)
 
 ### Current verification snapshot
 - Build: `cmake --build build --clean-first` passes.
 - Tests: `ctest --output-on-failure` passes at build root (`204/204`).
 - Working tree note: `palette.dat` remains locally modified (data file only).
 
-### Findings closure update
-
-Follow-up findings from the same date are now implemented:
+### Closed findings
 
 1. Deterministic path resolution was implemented in `src/path_resolver.cpp` using executable/base-path anchored probing with retained fallback behavior.
 2. `tempmap.cpp` include coupling was removed by introducing `src/tempmap.h` and compiling `src/tempmap.cpp` as its own translation unit.
@@ -59,5 +57,5 @@ Follow-up findings from the same date are now implemented:
    - optional non-blocking strict cppcheck profile for pull requests
 
 ### Recommended next focus
-- Watch strict cppcheck pull-request output for 1-2 cycles, then promote stable checks from non-blocking to blocking where signal quality is high.
-- Consider adding targeted label/regex filters in `ctest` if future test suites diverge beyond shared components.
+- Monitor strict cppcheck pull-request output for 1-2 cycles, then promote stable checks from non-blocking to blocking.
+- Add targeted label/regex filtering in `ctest` only if test suites diverge beyond shared components.
