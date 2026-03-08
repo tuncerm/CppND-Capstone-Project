@@ -9,16 +9,16 @@
  * Each digit maps to which segments should be lit
  */
 static const uint8_t seven_segment_patterns[10] = {
-    0b00111111,  // 0: A,B,C,D,E,F
-    0b00000110,  // 1: B,C
-    0b01011011,  // 2: A,B,G,E,D
-    0b01001111,  // 3: A,B,G,C,D
-    0b01100110,  // 4: F,G,B,C
-    0b01101101,  // 5: A,F,G,C,D
-    0b01111101,  // 6: A,F,G,E,D,C
-    0b00000111,  // 7: A,B,C
-    0b01111111,  // 8: All segments
-    0b01101111   // 9: A,B,C,D,F,G
+    0x3F,  // 0: A,B,C,D,E,F
+    0x06,  // 1: B,C
+    0x5B,  // 2: A,B,G,E,D
+    0x4F,  // 3: A,B,G,C,D
+    0x66,  // 4: F,G,B,C
+    0x6D,  // 5: A,F,G,C,D
+    0x7D,  // 6: A,F,G,E,D,C
+    0x07,  // 7: A,B,C
+    0x7F,  // 8: All segments
+    0x6F   // 9: A,B,C,D,F,G
 };
 
 /**

@@ -20,7 +20,11 @@ endif()
 # Compiler-specific flags
 if(MSVC)
     # Microsoft Visual C++ compiler
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W4 /WX-")
+    if(ENABLE_WARNINGS_AS_ERRORS)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W4 /WX")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W4 /WX-")
+    endif()
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /Od /Zi /RTC1")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /O2 /DNDEBUG")
     # Set Windows subsystem to console
@@ -28,6 +32,9 @@ if(MSVC)
 elseif(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     # GCC or Clang compiler
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic")
+    if(ENABLE_WARNINGS_AS_ERRORS)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror")
+    endif()
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -O0")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -DNDEBUG")
 

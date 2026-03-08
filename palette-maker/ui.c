@@ -569,7 +569,7 @@ void ui_render(UIState* ui, const Palette* palette, const AppConfig* config) {
                                        config->swatch_size + expand * 2, selection_color);
             }
 
-            char index_str[4];
+            char index_str[12];
             snprintf(index_str, sizeof(index_str), "%d", index);
             ui_render_text(ui, index_str, x + 2, y + 2, text_color);
         }

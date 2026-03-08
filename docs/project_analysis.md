@@ -48,6 +48,9 @@ Follow-up TODO implementation and cleanup are complete:
    - Isolated shared tests + analysis job.
    - Added non-blocking strict cppcheck profile for pull requests.
    - Added shared test labels and CI label filtering (`ctest -L shared`).
+   - Added warnings-as-errors enforcement option (`ENABLE_WARNINGS_AS_ERRORS`) and enabled it in CI.
+   - Centralized cppcheck invocation via `tools/run_cppcheck.sh` and upload strict cppcheck report artifacts in PR CI.
+   - Added strict cppcheck XML summary generation for CI step summaries (`tools/summarize_cppcheck_xml.py`).
 
 ## Current verification snapshot
 - Build: `cmake --build build --clean-first` passes.
@@ -55,6 +58,5 @@ Follow-up TODO implementation and cleanup are complete:
 
 ## Remaining recommendations (non-blocking)
 - Monitor strict cppcheck pull-request output for 1-2 cycles, then promote stable checks from non-blocking to blocking.
-- Keep monitoring warning drift as code evolves.
 
 Tracked as active items in `docs/todo.md`.

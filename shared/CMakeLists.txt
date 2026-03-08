@@ -49,6 +49,19 @@ target_include_directories(shared_components PUBLIC
 # Set C standard
 set_property(TARGET shared_components PROPERTY C_STANDARD 11)
 
+# Keep shared library warning policy aligned with top-level tools.
+if(MSVC)
+    target_compile_options(shared_components PRIVATE /W4)
+    if(ENABLE_WARNINGS_AS_ERRORS)
+        target_compile_options(shared_components PRIVATE /WX)
+    endif()
+elseif(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(shared_components PRIVATE -Wall -Wextra -Wpedantic)
+    if(ENABLE_WARNINGS_AS_ERRORS)
+        target_compile_options(shared_components PRIVATE -Werror)
+    endif()
+endif()
+
 # Find SDL3 if not already found
 if(NOT TARGET SDL3::SDL3)
     find_package(SDL3 REQUIRED)

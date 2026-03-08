@@ -445,7 +445,17 @@ static bool parse_json_object(ConfigManager* cm, const char* json, size_t* pos,
             // Nested object - use key as section name
             char new_section[CONFIG_MAX_STRING_LENGTH];
             if (strlen(section) > 0) {
-                snprintf(new_section, sizeof(new_section), "%s.%s", section, key);
+                size_t section_len = strlen(section);
+                size_t key_len = strlen(key);
+                if (section_len + 1 + key_len >= sizeof(new_section)) {
+                    ErrorHandler_Set(ERR_CONFIG_PARSE, __FILE__, __LINE__,
+                                     "Nested section name too long: [%s]%s", section, key);
+                    return false;
+                }
+                memcpy(new_section, section, section_len);
+                new_section[section_len] = '.';
+                memcpy(new_section + section_len + 1, key, key_len);
+                new_section[section_len + 1 + key_len] = '\0';
             } else {
                 strncpy(new_section, key, sizeof(new_section) - 1);
                 new_section[sizeof(new_section) - 1] = '\0';

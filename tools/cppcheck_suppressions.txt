@@ -1,0 +1,3 @@
+# Shared baseline suppressions used by CI cppcheck profiles.
+missingIncludeSystem
+unusedFunction

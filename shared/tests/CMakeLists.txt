@@ -98,12 +98,18 @@ if(WIN32)
     # Windows-specific test settings
     if(MSVC)
         target_compile_options(${TEST_TARGET} PRIVATE "/W4")
+        if(ENABLE_WARNINGS_AS_ERRORS)
+            target_compile_options(${TEST_TARGET} PRIVATE "/WX")
+        endif()
         # Set runtime library to match shared_components
         set_property(TARGET ${TEST_TARGET} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     endif()
 elseif(UNIX)
     # Unix-specific test settings
     target_compile_options(${TEST_TARGET} PRIVATE "-Wall" "-Wextra" "-Wpedantic")
+    if(ENABLE_WARNINGS_AS_ERRORS)
+        target_compile_options(${TEST_TARGET} PRIVATE "-Werror")
+    endif()
     if(NOT APPLE)
         target_link_libraries(${TEST_TARGET} PRIVATE pthread)
     endif()
