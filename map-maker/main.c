@@ -29,11 +29,51 @@
 #define TILE_PANEL_TILE_GAP 2
 
 #define STATUS_BAR_HEIGHT 24
+#define MAP_META_MAGIC "MMD1"
+#define MAP_META_VERSION 1
+#define MAP_META_HEADER_SIZE 64
+#define SOURCE_TILE_GRID_SIZE 16
+#define SPAWN_BUTTON_Y (TILE_PANEL_Y + 374)
+#define SPAWN_BUTTON_W 42
+#define SPAWN_BUTTON_H 22
+#define SPAWN_BUTTON_GAP 6
+#define SPAWN_MOVE_Y (SPAWN_BUTTON_Y + SPAWN_BUTTON_H + 10)
+#define SPAWN_MOVE_W 30
+#define SPAWN_MOVE_H 22
 
 typedef struct {
     int material;
     uint16_t entries[16];
 } MapCell;
+
+typedef struct {
+    uint8_t x;
+    uint8_t y;
+} GridPoint;
+
+typedef struct {
+    bool exists;
+    uint8_t x;
+    uint8_t y;
+    uint8_t w;
+    uint8_t h;
+    uint8_t tile_x;
+    uint8_t tile_y;
+} StructureRect;
+
+typedef struct {
+    GridPoint player_spawns[2];
+    GridPoint enemy_spawns[3];
+    StructureRect player_base;
+    StructureRect enemy_base;
+    uint8_t enemy_count;
+    bool enemy_base_produces_extra;
+} MapMetadata;
+
+typedef enum {
+    BASE_EDIT_PLAYER = 0,
+    BASE_EDIT_ENEMY = 1,
+} BaseEditTarget;
 
 typedef struct {
     SDL_Window* window;
@@ -60,9 +100,16 @@ typedef struct {
     char map_path[260];
     char palette_path[260];
     char tiles_path[260];
+
+    MapMetadata meta;
+    BaseEditTarget active_base;
+    int active_spawn_slot;  // 0..4 => P1,P2,E1,E2,E3
+    int pending_spawn_slot; // -1 none, 0..4 waiting for map click
 } AppState;
 
 static MapCell g_map[MAP_ROWS][MAP_COLS];
+static void render_text_line(AppState* app, const char* text, int x, int y, SDL_Color color);
+static bool point_in_frect(int x, int y, const SDL_FRect* rect);
 
 static bool file_exists(const char* path) {
     if (!path || path[0] == '\0') {
@@ -112,6 +159,16 @@ static void set_status(AppState* app, const char* message) {
     app->status[sizeof(app->status) - 1] = '\0';
 }
 
+static uint8_t clamp_u8(uint8_t value, uint8_t min_v, uint8_t max_v) {
+    if (value < min_v) {
+        return min_v;
+    }
+    if (value > max_v) {
+        return max_v;
+    }
+    return value;
+}
+
 static void fill_cell(int row, int col, uint8_t tile_id, uint8_t health, uint8_t destruction_mode,
                       uint8_t movement) {
     if (row < 0 || row >= MAP_ROWS || col < 0 || col >= MAP_COLS) {
@@ -140,6 +197,83 @@ static void init_default_map(void) {
             }
         }
     }
+}
+
+static void metadata_init_defaults(MapMetadata* meta) {
+    if (!meta) {
+        return;
+    }
+
+    memset(meta, 0, sizeof(*meta));
+    meta->player_spawns[0].x = 2;
+    meta->player_spawns[0].y = MAP_ROWS - 2;
+    meta->player_spawns[1].x = 4;
+    meta->player_spawns[1].y = MAP_ROWS - 2;
+
+    meta->enemy_spawns[0].x = MAP_COLS / 2;
+    meta->enemy_spawns[0].y = 1;
+    meta->enemy_spawns[1].x = (MAP_COLS / 2) - 4;
+    meta->enemy_spawns[1].y = 1;
+    meta->enemy_spawns[2].x = (MAP_COLS / 2) + 4;
+    meta->enemy_spawns[2].y = 1;
+
+    meta->player_base.exists = false;
+    meta->player_base.x = 1;
+    meta->player_base.y = MAP_ROWS - 4;
+    meta->player_base.w = 3;
+    meta->player_base.h = 2;
+    meta->player_base.tile_x = 0;
+    meta->player_base.tile_y = 0;
+
+    meta->enemy_base.exists = false;
+    meta->enemy_base.x = MAP_COLS - 4;
+    meta->enemy_base.y = 1;
+    meta->enemy_base.w = 3;
+    meta->enemy_base.h = 2;
+    meta->enemy_base.tile_x = 0;
+    meta->enemy_base.tile_y = 0;
+
+    meta->enemy_count = 8;
+    meta->enemy_base_produces_extra = false;
+}
+
+static void structure_clamp_to_map(StructureRect* structure) {
+    if (!structure) {
+        return;
+    }
+
+    structure->w = clamp_u8(structure->w, 1, MAP_COLS);
+    structure->h = clamp_u8(structure->h, 1, MAP_ROWS);
+    structure->x = clamp_u8(structure->x, 0, MAP_COLS - 1);
+    structure->y = clamp_u8(structure->y, 0, MAP_ROWS - 1);
+
+    if ((int)structure->x + (int)structure->w > MAP_COLS) {
+        structure->x = (uint8_t)(MAP_COLS - structure->w);
+    }
+    if ((int)structure->y + (int)structure->h > MAP_ROWS) {
+        structure->y = (uint8_t)(MAP_ROWS - structure->h);
+    }
+
+    structure->tile_x = clamp_u8(structure->tile_x, 0, SOURCE_TILE_GRID_SIZE - 1);
+    structure->tile_y = clamp_u8(structure->tile_y, 0, SOURCE_TILE_GRID_SIZE - 1);
+}
+
+static void metadata_clamp(MapMetadata* meta) {
+    if (!meta) {
+        return;
+    }
+
+    for (int i = 0; i < 2; ++i) {
+        meta->player_spawns[i].x = clamp_u8(meta->player_spawns[i].x, 0, MAP_COLS - 1);
+        meta->player_spawns[i].y = clamp_u8(meta->player_spawns[i].y, 0, MAP_ROWS - 1);
+    }
+    for (int i = 0; i < 3; ++i) {
+        meta->enemy_spawns[i].x = clamp_u8(meta->enemy_spawns[i].x, 0, MAP_COLS - 1);
+        meta->enemy_spawns[i].y = clamp_u8(meta->enemy_spawns[i].y, 0, MAP_ROWS - 1);
+    }
+
+    structure_clamp_to_map(&meta->player_base);
+    structure_clamp_to_map(&meta->enemy_base);
 }
 
 static bool parse_int_token(const char* token, int* out_value) {
@@ -284,12 +418,7 @@ static const char* scan_next_token(const char* input, char* out_token, size_t ou
     return cursor;
 }
 
-static bool load_map_file(const char* path) {
-    if (!path) {
-        return false;
-    }
-
-    FILE* file = fopen(path, "rb");
+static bool load_map_stream(FILE* file) {
     if (!file) {
         return false;
     }
@@ -332,12 +461,192 @@ static bool load_map_file(const char* path) {
         ++row;
     }
 
-    fclose(file);
     return true;
 }
 
-static bool save_map_file(const char* path) {
+static bool save_map_stream(FILE* file) {
+    if (!file) {
+        return false;
+    }
+
+    for (int row = 0; row < MAP_ROWS; ++row) {
+        for (int col = 0; col < MAP_COLS; ++col) {
+            const MapCell* cell = &g_map[row][col];
+            if (fprintf(file, "%d|", cell->material == 0 ? 0 : 1) < 0) {
+                return false;
+            }
+            for (int i = 0; i < 16; ++i) {
+                if (fprintf(file, "0x%04X", (unsigned)cell->entries[i]) < 0) {
+                    return false;
+                }
+                if (i < 15 && fputc(',', file) == EOF) {
+                    return false;
+                }
+            }
+            if (col < MAP_COLS - 1 && fputc(' ', file) == EOF) {
+                return false;
+            }
+        }
+        if (fputc('\n', file) == EOF) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static bool metadata_write_header(FILE* file, const MapMetadata* meta) {
+    if (!file || !meta) {
+        return false;
+    }
+
+    uint8_t header[MAP_META_HEADER_SIZE] = {0};
+    header[0] = 'M';
+    header[1] = 'M';
+    header[2] = 'D';
+    header[3] = '1';
+    header[4] = (uint8_t)(MAP_META_VERSION & 0xFFu);
+    header[5] = (uint8_t)((MAP_META_VERSION >> 8) & 0xFFu);
+    header[6] = MAP_COLS;
+    header[7] = MAP_ROWS;
+    header[8] = meta->enemy_count;
+    header[9] = meta->enemy_base_produces_extra ? 1u : 0u;
+
+    header[10] = meta->player_spawns[0].x;
+    header[11] = meta->player_spawns[0].y;
+    header[12] = meta->player_spawns[1].x;
+    header[13] = meta->player_spawns[1].y;
+
+    header[14] = meta->enemy_spawns[0].x;
+    header[15] = meta->enemy_spawns[0].y;
+    header[16] = meta->enemy_spawns[1].x;
+    header[17] = meta->enemy_spawns[1].y;
+    header[18] = meta->enemy_spawns[2].x;
+    header[19] = meta->enemy_spawns[2].y;
+
+    header[20] = meta->player_base.exists ? 1u : 0u;
+    header[21] = meta->player_base.x;
+    header[22] = meta->player_base.y;
+    header[23] = meta->player_base.w;
+    header[24] = meta->player_base.h;
+    header[25] = meta->player_base.tile_x;
+    header[26] = meta->player_base.tile_y;
+
+    header[27] = meta->enemy_base.exists ? 1u : 0u;
+    header[28] = meta->enemy_base.x;
+    header[29] = meta->enemy_base.y;
+    header[30] = meta->enemy_base.w;
+    header[31] = meta->enemy_base.h;
+    header[32] = meta->enemy_base.tile_x;
+    header[33] = meta->enemy_base.tile_y;
+
+    return fwrite(header, 1, sizeof(header), file) == sizeof(header);
+}
+
+static bool metadata_read_header(FILE* file, MapMetadata* out_meta) {
+    if (!file || !out_meta) {
+        return false;
+    }
+
+    uint8_t header[MAP_META_HEADER_SIZE] = {0};
+    if (fread(header, 1, sizeof(header), file) != sizeof(header)) {
+        return false;
+    }
+
+    if (!(header[0] == 'M' && header[1] == 'M' && header[2] == 'D' && header[3] == '1')) {
+        return false;
+    }
+
+    const uint16_t version = (uint16_t)(header[4] | ((uint16_t)header[5] << 8));
+    if (version != MAP_META_VERSION) {
+        return false;
+    }
+    if (header[6] != MAP_COLS || header[7] != MAP_ROWS) {
+        return false;
+    }
+
+    MapMetadata loaded;
+    metadata_init_defaults(&loaded);
+
+    loaded.enemy_count = header[8];
+    loaded.enemy_base_produces_extra = header[9] != 0;
+
+    loaded.player_spawns[0].x = header[10];
+    loaded.player_spawns[0].y = header[11];
+    loaded.player_spawns[1].x = header[12];
+    loaded.player_spawns[1].y = header[13];
+
+    loaded.enemy_spawns[0].x = header[14];
+    loaded.enemy_spawns[0].y = header[15];
+    loaded.enemy_spawns[1].x = header[16];
+    loaded.enemy_spawns[1].y = header[17];
+    loaded.enemy_spawns[2].x = header[18];
+    loaded.enemy_spawns[2].y = header[19];
+
+    loaded.player_base.exists = header[20] != 0;
+    loaded.player_base.x = header[21];
+    loaded.player_base.y = header[22];
+    loaded.player_base.w = header[23];
+    loaded.player_base.h = header[24];
+    loaded.player_base.tile_x = header[25];
+    loaded.player_base.tile_y = header[26];
+
+    loaded.enemy_base.exists = header[27] != 0;
+    loaded.enemy_base.x = header[28];
+    loaded.enemy_base.y = header[29];
+    loaded.enemy_base.w = header[30];
+    loaded.enemy_base.h = header[31];
+    loaded.enemy_base.tile_x = header[32];
+    loaded.enemy_base.tile_y = header[33];
+
+    metadata_clamp(&loaded);
+    *out_meta = loaded;
+    return true;
+}
+
+static bool load_map_file(const char* path, MapMetadata* out_meta) {
     if (!path) {
+        return false;
+    }
+
+    FILE* file = fopen(path, "rb");
+    if (!file) {
+        return false;
+    }
+
+    uint8_t magic[4] = {0};
+    size_t magic_read = fread(magic, 1, sizeof(magic), file);
+    if (magic_read != sizeof(magic)) {
+        fclose(file);
+        return false;
+    }
+
+    bool has_header = magic[0] == 'M' && magic[1] == 'M' && magic[2] == 'D' && magic[3] == '1';
+    bool ok = false;
+    if (has_header) {
+        if (fseek(file, 0, SEEK_SET) != 0 || !metadata_read_header(file, out_meta) ||
+            fseek(file, MAP_META_HEADER_SIZE, SEEK_SET) != 0) {
+            fclose(file);
+            return false;
+        }
+        ok = load_map_stream(file);
+    } else {
+        if (out_meta) {
+            metadata_init_defaults(out_meta);
+        }
+        if (fseek(file, 0, SEEK_SET) != 0) {
+            fclose(file);
+            return false;
+        }
+        ok = load_map_stream(file);
+    }
+
+    fclose(file);
+    return ok;
+}
+
+static bool save_map_file(const char* path, const MapMetadata* meta) {
+    if (!path || !meta) {
         return false;
     }
 
@@ -346,25 +655,10 @@ static bool save_map_file(const char* path) {
         return false;
     }
 
-    for (int row = 0; row < MAP_ROWS; ++row) {
-        for (int col = 0; col < MAP_COLS; ++col) {
-            const MapCell* cell = &g_map[row][col];
-            fprintf(file, "%d|", cell->material == 0 ? 0 : 1);
-            for (int i = 0; i < 16; ++i) {
-                fprintf(file, "0x%04X", (unsigned)cell->entries[i]);
-                if (i < 15) {
-                    fputc(',', file);
-                }
-            }
-            if (col < MAP_COLS - 1) {
-                fputc(' ', file);
-            }
-        }
-        fputc('\n', file);
-    }
-
+    bool ok = metadata_write_header(file, meta) &&
+              fseek(file, MAP_META_HEADER_SIZE, SEEK_SET) == 0 && save_map_stream(file);
     fclose(file);
-    return true;
+    return ok;
 }
 
 static void sync_brush_from_selected_tile(AppState* app) {
@@ -376,6 +670,284 @@ static void sync_brush_from_selected_tile(AppState* app) {
     app->brush_health = (uint8_t)(spec & 0x07u);
     app->brush_destruction = (uint8_t)((spec >> 3) & 0x07u);
     app->brush_movement = (uint8_t)((spec >> 6) & 0x03u);
+}
+
+static StructureRect* app_get_active_structure(AppState* app) {
+    if (!app) {
+        return NULL;
+    }
+    return app->active_base == BASE_EDIT_ENEMY ? &app->meta.enemy_base : &app->meta.player_base;
+}
+
+static bool app_hover_cell(const AppState* app, int* out_row, int* out_col) {
+    if (!app || app->hover_row < 0 || app->hover_col < 0) {
+        return false;
+    }
+    if (out_row) {
+        *out_row = app->hover_row;
+    }
+    if (out_col) {
+        *out_col = app->hover_col;
+    }
+    return true;
+}
+
+static void app_set_spawn_at_cell(AppState* app, int spawn_slot, int row, int col) {
+    if (!app || row < 0 || row >= MAP_ROWS || col < 0 || col >= MAP_COLS) {
+        return;
+    }
+
+    if (spawn_slot >= 0 && spawn_slot < 2) {
+        app->meta.player_spawns[spawn_slot].x = (uint8_t)col;
+        app->meta.player_spawns[spawn_slot].y = (uint8_t)row;
+    } else if (spawn_slot >= 2 && spawn_slot < 5) {
+        int enemy_slot = spawn_slot - 2;
+        app->meta.enemy_spawns[enemy_slot].x = (uint8_t)col;
+        app->meta.enemy_spawns[enemy_slot].y = (uint8_t)row;
+    } else {
+        return;
+    }
+
+    app->dirty = true;
+}
+
+static void app_set_spawn_at_hover(AppState* app, int spawn_slot) {
+    if (!app) {
+        return;
+    }
+
+    int row = 0;
+    int col = 0;
+    if (!app_hover_cell(app, &row, &col)) {
+        return;
+    }
+
+    app_set_spawn_at_cell(app, spawn_slot, row, col);
+}
+
+static GridPoint* app_get_spawn_slot(AppState* app, int spawn_slot) {
+    if (!app || spawn_slot < 0 || spawn_slot > 4) {
+        return NULL;
+    }
+
+    if (spawn_slot < 2) {
+        return &app->meta.player_spawns[spawn_slot];
+    }
+
+    return &app->meta.enemy_spawns[spawn_slot - 2];
+}
+
+static void app_move_active_spawn(AppState* app, int dx, int dy) {
+    if (!app) {
+        return;
+    }
+
+    GridPoint* spawn = app_get_spawn_slot(app, app->active_spawn_slot);
+    if (!spawn) {
+        return;
+    }
+
+    int next_x = (int)spawn->x + dx;
+    int next_y = (int)spawn->y + dy;
+    if (next_x < 0) {
+        next_x = 0;
+    } else if (next_x >= MAP_COLS) {
+        next_x = MAP_COLS - 1;
+    }
+    if (next_y < 0) {
+        next_y = 0;
+    } else if (next_y >= MAP_ROWS) {
+        next_y = MAP_ROWS - 1;
+    }
+
+    if ((int)spawn->x != next_x || (int)spawn->y != next_y) {
+        spawn->x = (uint8_t)next_x;
+        spawn->y = (uint8_t)next_y;
+        app->dirty = true;
+    }
+}
+
+static SDL_FRect spawn_slot_rect(int slot) {
+    return (SDL_FRect){(float)(TILE_PANEL_X + slot * (SPAWN_BUTTON_W + SPAWN_BUTTON_GAP)),
+                       (float)SPAWN_BUTTON_Y, (float)SPAWN_BUTTON_W, (float)SPAWN_BUTTON_H};
+}
+
+static SDL_FRect spawn_move_up_rect(void) {
+    return (SDL_FRect){(float)(TILE_PANEL_X + SPAWN_MOVE_W + 4), (float)SPAWN_MOVE_Y,
+                       (float)SPAWN_MOVE_W, (float)SPAWN_MOVE_H};
+}
+
+static SDL_FRect spawn_move_left_rect(void) {
+    return (SDL_FRect){(float)TILE_PANEL_X, (float)(SPAWN_MOVE_Y + SPAWN_MOVE_H + 2),
+                       (float)SPAWN_MOVE_W, (float)SPAWN_MOVE_H};
+}
+
+static SDL_FRect spawn_move_down_rect(void) {
+    return (SDL_FRect){(float)(TILE_PANEL_X + SPAWN_MOVE_W + 4),
+                       (float)(SPAWN_MOVE_Y + SPAWN_MOVE_H + 2), (float)SPAWN_MOVE_W,
+                       (float)SPAWN_MOVE_H};
+}
+
+static SDL_FRect spawn_move_right_rect(void) {
+    return (SDL_FRect){(float)(TILE_PANEL_X + (SPAWN_MOVE_W + 4) * 2),
+                       (float)(SPAWN_MOVE_Y + SPAWN_MOVE_H + 2), (float)SPAWN_MOVE_W,
+                       (float)SPAWN_MOVE_H};
+}
+
+static bool handle_spawn_ui_click(AppState* app, int x, int y) {
+    if (!app) {
+        return false;
+    }
+
+    for (int slot = 0; slot < 5; ++slot) {
+        SDL_FRect rect = spawn_slot_rect(slot);
+        if (point_in_frect(x, y, &rect)) {
+            app->active_spawn_slot = slot;
+            app->pending_spawn_slot = slot;
+            set_status(app, "Spawn armed: click map cell to place");
+            return true;
+        }
+    }
+
+    SDL_FRect up = spawn_move_up_rect();
+    if (point_in_frect(x, y, &up)) {
+        app_move_active_spawn(app, 0, -1);
+        return true;
+    }
+    SDL_FRect left = spawn_move_left_rect();
+    if (point_in_frect(x, y, &left)) {
+        app_move_active_spawn(app, -1, 0);
+        return true;
+    }
+    SDL_FRect down = spawn_move_down_rect();
+    if (point_in_frect(x, y, &down)) {
+        app_move_active_spawn(app, 0, 1);
+        return true;
+    }
+    SDL_FRect right = spawn_move_right_rect();
+    if (point_in_frect(x, y, &right)) {
+        app_move_active_spawn(app, 1, 0);
+        return true;
+    }
+
+    return false;
+}
+
+static void app_place_base_at_hover(AppState* app, bool enemy_base) {
+    if (!app) {
+        return;
+    }
+
+    int row = 0;
+    int col = 0;
+    if (!app_hover_cell(app, &row, &col)) {
+        return;
+    }
+
+    StructureRect* structure = enemy_base ? &app->meta.enemy_base : &app->meta.player_base;
+    structure->exists = true;
+    structure->x = (uint8_t)col;
+    structure->y = (uint8_t)row;
+    if (structure->w == 0) {
+        structure->w = 3;
+    }
+    if (structure->h == 0) {
+        structure->h = 2;
+    }
+    structure->tile_x = (uint8_t)(app->selected_tile % SOURCE_TILE_GRID_SIZE);
+    structure->tile_y = (uint8_t)(app->selected_tile / SOURCE_TILE_GRID_SIZE);
+    structure_clamp_to_map(structure);
+    app->dirty = true;
+}
+
+static void app_adjust_active_structure(AppState* app, SDL_Scancode code) {
+    if (!app) {
+        return;
+    }
+
+    StructureRect* structure = app_get_active_structure(app);
+    if (!structure) {
+        return;
+    }
+
+    switch (code) {
+        case SDL_SCANCODE_UP:
+            if (structure->y > 0) {
+                structure->y--;
+                app->dirty = true;
+            }
+            break;
+        case SDL_SCANCODE_DOWN:
+            if (structure->y < MAP_ROWS - 1) {
+                structure->y++;
+                app->dirty = true;
+            }
+            break;
+        case SDL_SCANCODE_LEFT:
+            if (structure->x > 0) {
+                structure->x--;
+                app->dirty = true;
+            }
+            break;
+        case SDL_SCANCODE_RIGHT:
+            if (structure->x < MAP_COLS - 1) {
+                structure->x++;
+                app->dirty = true;
+            }
+            break;
+        case SDL_SCANCODE_U:
+            if (structure->w > 1) {
+                structure->w--;
+                app->dirty = true;
+            }
+            break;
+        case SDL_SCANCODE_O:
+            if (structure->w < MAP_COLS) {
+                structure->w++;
+                app->dirty = true;
+            }
+            break;
+        case SDL_SCANCODE_J:
+            if (structure->h > 1) {
+                structure->h--;
+                app->dirty = true;
+            }
+            break;
+        case SDL_SCANCODE_K:
+            if (structure->h < MAP_ROWS) {
+                structure->h++;
+                app->dirty = true;
+            }
+            break;
+        case SDL_SCANCODE_T:
+            if (structure->tile_x > 0) {
+                structure->tile_x--;
+                app->dirty = true;
+            }
+            break;
+        case SDL_SCANCODE_G:
+            if (structure->tile_x < SOURCE_TILE_GRID_SIZE - 1) {
+                structure->tile_x++;
+                app->dirty = true;
+            }
+            break;
+        case SDL_SCANCODE_Y:
+            if (structure->tile_y > 0) {
+                structure->tile_y--;
+                app->dirty = true;
+            }
+            break;
+        case SDL_SCANCODE_H:
+            if (structure->tile_y < SOURCE_TILE_GRID_SIZE - 1) {
+                structure->tile_y++;
+                app->dirty = true;
+            }
+            break;
+        default:
+            break;
+    }
+
+    structure_clamp_to_map(structure);
 }
 
 static bool point_in_rect(int x, int y, int rx, int ry, int rw, int rh) {
@@ -485,6 +1057,50 @@ static void render_tile(SDL_Renderer* renderer, int tile_id, int x, int y, int s
     }
 }
 
+static void render_spawn_marker(AppState* app, GridPoint point, SDL_Color color, const char* label,
+                                bool active) {
+    if (!app || !app->renderer || !label) {
+        return;
+    }
+
+    const int cx = MAP_ORIGIN_X + point.x * CELL_SIZE + CELL_SIZE / 2;
+    const int cy = MAP_ORIGIN_Y + point.y * CELL_SIZE + CELL_SIZE / 2;
+    SDL_SetRenderDrawColor(app->renderer, color.r, color.g, color.b, color.a);
+    SDL_FRect marker = {(float)(cx - 3), (float)(cy - 3), 7.0f, 7.0f};
+    SDL_RenderFillRect(app->renderer, &marker);
+    SDL_FRect border = {(float)(cx - 5), (float)(cy - 5), 11.0f, 11.0f};
+    SDL_RenderRect(app->renderer, &border);
+    if (active) {
+        SDL_SetRenderDrawColor(app->renderer, 255, 255, 255, 255);
+        SDL_FRect outer = {(float)(cx - 7), (float)(cy - 7), 15.0f, 15.0f};
+        SDL_RenderRect(app->renderer, &outer);
+    }
+    render_text_line(app, label, cx + 6, cy - 3, color);
+}
+
+static void render_structure(AppState* app, const StructureRect* structure, SDL_Color color,
+                             const char* label) {
+    if (!app || !app->renderer || !structure || !structure->exists || !label) {
+        return;
+    }
+
+    const int x = MAP_ORIGIN_X + structure->x * CELL_SIZE;
+    const int y = MAP_ORIGIN_Y + structure->y * CELL_SIZE;
+    const int w = structure->w * CELL_SIZE;
+    const int h = structure->h * CELL_SIZE;
+
+    SDL_SetRenderDrawColor(app->renderer, color.r, color.g, color.b, color.a);
+    SDL_FRect outer = {(float)x, (float)y, (float)w, (float)h};
+    SDL_RenderRect(app->renderer, &outer);
+    SDL_FRect inner = {(float)(x + 1), (float)(y + 1), (float)(w - 2), (float)(h - 2)};
+    SDL_RenderRect(app->renderer, &inner);
+
+    char text[80];
+    snprintf(text, sizeof(text), "%s %ux%u t(%u,%u)", label, (unsigned)structure->w,
+             (unsigned)structure->h, (unsigned)structure->tile_x, (unsigned)structure->tile_y);
+    render_text_line(app, text, x + 2, y + 2, color);
+}
+
 static void render_map(AppState* app) {
     if (!app || !app->renderer) {
         return;
@@ -525,6 +1141,19 @@ static void render_map(AppState* app) {
                            (float)CELL_SIZE};
         SDL_RenderRect(app->renderer, &hover);
     }
+
+    render_spawn_marker(app, app->meta.player_spawns[0], (SDL_Color){80, 220, 255, 255}, "P1",
+                        app->active_spawn_slot == 0);
+    render_spawn_marker(app, app->meta.player_spawns[1], (SDL_Color){140, 255, 170, 255}, "P2",
+                        app->active_spawn_slot == 1);
+    render_spawn_marker(app, app->meta.enemy_spawns[0], (SDL_Color){255, 140, 140, 255}, "E1",
+                        app->active_spawn_slot == 2);
+    render_spawn_marker(app, app->meta.enemy_spawns[1], (SDL_Color){255, 170, 120, 255}, "E2",
+                        app->active_spawn_slot == 3);
+    render_spawn_marker(app, app->meta.enemy_spawns[2], (SDL_Color){255, 210, 100, 255}, "E3",
+                        app->active_spawn_slot == 4);
+    render_structure(app, &app->meta.player_base, (SDL_Color){80, 210, 255, 255}, "HOME");
+    render_structure(app, &app->meta.enemy_base, (SDL_Color){255, 120, 120, 255}, "ENEMY");
 }
 
 static void render_tile_panel(AppState* app) {
@@ -567,23 +1196,88 @@ static void render_text_line(AppState* app, const char* text, int x, int y, SDL_
     text_render_string(&app->text_renderer, text, x, y, color);
 }
 
+static int ui_text_width(const char* text) {
+    if (!text) {
+        return 0;
+    }
+    int len = (int)strlen(text);
+    if (len <= 0) {
+        return 0;
+    }
+    return len * 6 - 1;
+}
+
+static void render_button(AppState* app, const SDL_FRect* rect, const char* label, bool selected) {
+    if (!app || !app->renderer || !rect || !label) {
+        return;
+    }
+
+    SDL_Color fill = selected ? (SDL_Color){62, 112, 154, 255} : (SDL_Color){60, 60, 60, 255};
+    SDL_Color border = selected ? (SDL_Color){220, 240, 255, 255} : (SDL_Color){128, 128, 128, 255};
+    SDL_SetRenderDrawColor(app->renderer, fill.r, fill.g, fill.b, fill.a);
+    SDL_RenderFillRect(app->renderer, rect);
+    SDL_SetRenderDrawColor(app->renderer, border.r, border.g, border.b, border.a);
+    SDL_RenderRect(app->renderer, rect);
+
+    int tx = (int)(rect->x + (rect->w - (float)ui_text_width(label)) * 0.5f);
+    int ty = (int)(rect->y + (rect->h - 7.0f) * 0.5f);
+    render_text_line(app, label, tx, ty, (SDL_Color){255, 255, 255, 255});
+}
+
+static bool point_in_frect(int x, int y, const SDL_FRect* rect) {
+    if (!rect) {
+        return false;
+    }
+    return (float)x >= rect->x && (float)x <= (rect->x + rect->w) && (float)y >= rect->y &&
+           (float)y <= (rect->y + rect->h);
+}
+
 static void render_ui(AppState* app) {
     if (!app || !app->renderer) {
         return;
     }
 
-    char line1[128];
-    snprintf(line1, sizeof(line1), "Tile:%03d  H:%u D:%u M:%u", app->selected_tile,
-             (unsigned)app->brush_health, (unsigned)app->brush_destruction,
-             (unsigned)app->brush_movement);
+    char line1[180];
+    snprintf(line1, sizeof(line1), "Tile:%03d H:%u D:%u M:%u | Enemies:%u Factory:%s",
+             app->selected_tile, (unsigned)app->brush_health, (unsigned)app->brush_destruction,
+             (unsigned)app->brush_movement, (unsigned)app->meta.enemy_count,
+             app->meta.enemy_base_produces_extra ? "ON" : "OFF");
     render_text_line(app, line1, TILE_PANEL_X, TILE_PANEL_Y + 300, (SDL_Color){235, 235, 235, 255});
 
-    render_text_line(
-        app, "LMB paint, RMB pick, S save, L load, C reset", TILE_PANEL_X, TILE_PANEL_Y + 316,
-        (SDL_Color){180, 180, 180, 255});
-    render_text_line(
-        app, "[ ] health, , . destruct, ; ' movement", TILE_PANEL_X, TILE_PANEL_Y + 332,
-        (SDL_Color){180, 180, 180, 255});
+    const char* active_label = app->active_base == BASE_EDIT_ENEMY ? "enemy" : "player";
+    const char* spawn_labels[] = {"P1", "P2", "E1", "E2", "E3"};
+    const bool spawn_pending = app->pending_spawn_slot >= 0 && app->pending_spawn_slot <= 4;
+    const int pending_spawn = spawn_pending ? app->pending_spawn_slot : 0;
+    char line2[220];
+    if (spawn_pending) {
+        snprintf(line2, sizeof(line2), "Spawn %s armed: click map cell to place, Tab base:%s",
+                 spawn_labels[pending_spawn], active_label);
+    } else {
+        snprintf(line2, sizeof(line2), "Click P1/P2/E1/E2/E3 then click map to place, Tab base:%s",
+                 active_label);
+    }
+    render_text_line(app, line2, TILE_PANEL_X, TILE_PANEL_Y + 316, (SDL_Color){180, 180, 180, 255});
+    render_text_line(app,
+                     "Arrows move base, U/O width, J/K height, T/G tileX, Y/H tileY, F factory, -/= count",
+                     TILE_PANEL_X, TILE_PANEL_Y + 332, (SDL_Color){180, 180, 180, 255});
+    render_text_line(app,
+                     "LMB paint, RMB pick, S save, L load, C reset map, [ ] health, , . destruct, ; ' movement",
+                     TILE_PANEL_X, TILE_PANEL_Y + 348, (SDL_Color){180, 180, 180, 255});
+
+    const char* slot_labels[5] = {"P1", "P2", "E1", "E2", "E3"};
+    for (int slot = 0; slot < 5; ++slot) {
+        SDL_FRect rect = spawn_slot_rect(slot);
+        render_button(app, &rect, slot_labels[slot], app->pending_spawn_slot == slot);
+    }
+
+    SDL_FRect up = spawn_move_up_rect();
+    SDL_FRect left = spawn_move_left_rect();
+    SDL_FRect down = spawn_move_down_rect();
+    SDL_FRect right = spawn_move_right_rect();
+    render_button(app, &up, "U", false);
+    render_button(app, &left, "L", false);
+    render_button(app, &down, "D", false);
+    render_button(app, &right, "R", false);
 
     SDL_FRect status_bar = {0.0f, (float)(WINDOW_HEIGHT - STATUS_BAR_HEIGHT), (float)WINDOW_WIDTH,
                             (float)STATUS_BAR_HEIGHT};
@@ -596,6 +1290,22 @@ static void render_ui(AppState* app) {
 
 static void handle_mouse_press(AppState* app, bool left_button) {
     if (!app) {
+        return;
+    }
+
+    if (left_button && handle_spawn_ui_click(app, app->mouse_x, app->mouse_y)) {
+        return;
+    }
+
+    if (left_button && app->pending_spawn_slot >= 0 && app->pending_spawn_slot <= 4) {
+        int row = -1;
+        int col = -1;
+        if (hit_test_map(app->mouse_x, app->mouse_y, &row, &col)) {
+            app_set_spawn_at_cell(app, app->pending_spawn_slot, row, col);
+            app->active_spawn_slot = -1;
+            app->pending_spawn_slot = -1;
+            set_status(app, "Spawn placed");
+        }
         return;
     }
 
@@ -632,6 +1342,10 @@ static bool app_init(AppState* app) {
     app->brush_destruction = 1;
     app->brush_movement = 0;
     app->running = true;
+    app->active_base = BASE_EDIT_PLAYER;
+    app->active_spawn_slot = -1;
+    app->pending_spawn_slot = -1;
+    metadata_init_defaults(&app->meta);
     set_status(app, "Map Maker ready");
 
     const char* map_candidates[] = {"src/game.map", "../src/game.map", "../../src/game.map"};
@@ -646,7 +1360,7 @@ static bool app_init(AppState* app) {
         return false;
     }
 
-    app->window = SDL_CreateWindow("Map Maker v0.1", WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE);
+    app->window = SDL_CreateWindow("Map Maker v0.2", WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE);
     if (!app->window) {
         printf("Create window failed: %s\n", SDL_GetError());
         SDL_Quit();
@@ -686,12 +1400,20 @@ static bool app_init(AppState* app) {
     }
 
     sync_brush_from_selected_tile(app);
-    if (load_map_file(app->map_path)) {
-        set_status(app, "Map loaded");
-    } else {
+
+    bool map_ok = load_map_file(app->map_path, &app->meta);
+    if (!map_ok) {
         init_default_map();
-        set_status(app, "Map file not found, using defaults");
+        metadata_init_defaults(&app->meta);
     }
+    metadata_clamp(&app->meta);
+
+    if (map_ok) {
+        set_status(app, "Map (header+payload) loaded");
+    } else {
+        set_status(app, "Defaults loaded");
+    }
+    app->dirty = false;
 
     return true;
 }
@@ -731,7 +1453,7 @@ static void app_handle_events(AppState* app) {
                                               &logical_y);
                 app->mouse_x = (int)logical_x;
                 app->mouse_y = (int)logical_y;
-                if (app->mouse_left_pressed) {
+                if (app->mouse_left_pressed && app->pending_spawn_slot < 0) {
                     int row = -1;
                     int col = -1;
                     if (hit_test_map(app->mouse_x, app->mouse_y, &row, &col)) {
@@ -763,31 +1485,142 @@ static void app_handle_events(AppState* app) {
                     app->mouse_right_pressed = false;
                 }
                 break;
-            case SDL_EVENT_KEY_DOWN:
+            case SDL_EVENT_KEY_DOWN: {
+                const bool shift_held = (event.key.mod & SDL_KMOD_SHIFT) != 0;
                 switch (event.key.scancode) {
                     case SDL_SCANCODE_ESCAPE:
                         app->running = false;
                         break;
-                    case SDL_SCANCODE_S:
-                        if (save_map_file(app->map_path)) {
+                    case SDL_SCANCODE_S: {
+                        bool map_saved = save_map_file(app->map_path, &app->meta);
+                        if (map_saved) {
                             app->dirty = false;
-                            set_status(app, "Map saved");
+                            set_status(app, "Map saved (64-byte header + payload)");
                         } else {
-                            set_status(app, "Failed to save map");
+                            set_status(app, "Save failed");
                         }
                         break;
-                    case SDL_SCANCODE_L:
-                        if (load_map_file(app->map_path)) {
-                            app->dirty = false;
-                            set_status(app, "Map loaded");
-                        } else {
-                            set_status(app, "Failed to load map");
+                    }
+                    case SDL_SCANCODE_L: {
+                        bool map_loaded = load_map_file(app->map_path, &app->meta);
+                        if (!map_loaded) {
+                            init_default_map();
+                            metadata_init_defaults(&app->meta);
                         }
+                        metadata_clamp(&app->meta);
+                        if (map_loaded) {
+                            set_status(app, "Map loaded (header+payload)");
+                        } else {
+                            set_status(app, "Load failed, defaults restored");
+                        }
+                        app->dirty = false;
                         break;
+                    }
                     case SDL_SCANCODE_C:
                         init_default_map();
                         app->dirty = true;
                         set_status(app, "Map reset to defaults");
+                        break;
+                    case SDL_SCANCODE_1:
+                        if (shift_held) {
+                            app->active_spawn_slot = 0;
+                        } else {
+                            app_set_spawn_at_hover(app, 0);
+                        }
+                        break;
+                    case SDL_SCANCODE_2:
+                        if (shift_held) {
+                            app->active_spawn_slot = 1;
+                        } else {
+                            app_set_spawn_at_hover(app, 1);
+                        }
+                        break;
+                    case SDL_SCANCODE_3:
+                        if (shift_held) {
+                            app->active_spawn_slot = 2;
+                        } else {
+                            app_set_spawn_at_hover(app, 2);
+                        }
+                        break;
+                    case SDL_SCANCODE_4:
+                        if (shift_held) {
+                            app->active_spawn_slot = 3;
+                        } else {
+                            app_set_spawn_at_hover(app, 3);
+                        }
+                        break;
+                    case SDL_SCANCODE_5:
+                        if (shift_held) {
+                            app->active_spawn_slot = 4;
+                        } else {
+                            app_set_spawn_at_hover(app, 4);
+                        }
+                        break;
+                    case SDL_SCANCODE_B:
+                        if (shift_held) {
+                            app->meta.player_base.exists = !app->meta.player_base.exists;
+                            app->dirty = true;
+                        } else {
+                            app_place_base_at_hover(app, false);
+                            app->active_base = BASE_EDIT_PLAYER;
+                        }
+                        break;
+                    case SDL_SCANCODE_N:
+                        if (shift_held) {
+                            app->meta.enemy_base.exists = !app->meta.enemy_base.exists;
+                            app->dirty = true;
+                        } else {
+                            app_place_base_at_hover(app, true);
+                            app->active_base = BASE_EDIT_ENEMY;
+                        }
+                        break;
+                    case SDL_SCANCODE_TAB:
+                        app->active_base = app->active_base == BASE_EDIT_PLAYER ? BASE_EDIT_ENEMY
+                                                                                 : BASE_EDIT_PLAYER;
+                        break;
+                    case SDL_SCANCODE_MINUS:
+                        if (app->meta.enemy_count > 0) {
+                            app->meta.enemy_count--;
+                            app->dirty = true;
+                        }
+                        break;
+                    case SDL_SCANCODE_EQUALS:
+                        if (app->meta.enemy_count < 255) {
+                            app->meta.enemy_count++;
+                            app->dirty = true;
+                        }
+                        break;
+                    case SDL_SCANCODE_F:
+                        app->meta.enemy_base_produces_extra = !app->meta.enemy_base_produces_extra;
+                        app->dirty = true;
+                        break;
+                    case SDL_SCANCODE_UP:
+                        if (shift_held) {
+                            app_move_active_spawn(app, 0, -1);
+                        } else {
+                            app_adjust_active_structure(app, event.key.scancode);
+                        }
+                        break;
+                    case SDL_SCANCODE_DOWN:
+                        if (shift_held) {
+                            app_move_active_spawn(app, 0, 1);
+                        } else {
+                            app_adjust_active_structure(app, event.key.scancode);
+                        }
+                        break;
+                    case SDL_SCANCODE_LEFT:
+                        if (shift_held) {
+                            app_move_active_spawn(app, -1, 0);
+                        } else {
+                            app_adjust_active_structure(app, event.key.scancode);
+                        }
+                        break;
+                    case SDL_SCANCODE_RIGHT:
+                        if (shift_held) {
+                            app_move_active_spawn(app, 1, 0);
+                        } else {
+                            app_adjust_active_structure(app, event.key.scancode);
+                        }
                         break;
                     case SDL_SCANCODE_LEFTBRACKET:
                         if (app->brush_health > 0) {
@@ -820,9 +1653,11 @@ static void app_handle_events(AppState* app) {
                         }
                         break;
                     default:
+                        app_adjust_active_structure(app, event.key.scancode);
                         break;
                 }
                 break;
+            }
             default:
                 break;
         }
