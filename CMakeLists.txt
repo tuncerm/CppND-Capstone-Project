@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.21)
 # Project configuration
 project(PlayGame VERSION 1.0.0 LANGUAGES C CXX)
 
+# Enable top-level test discovery (`ctest` from build root).
+include(CTest)
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
