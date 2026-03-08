@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "ui_input_widgets.h"
 
 // Double-click detection threshold (milliseconds)
 #define DOUBLE_CLICK_TIME 300
@@ -20,32 +21,9 @@
 
 #define RGBA_BUTTON_INDEX(channel, op) ((channel) * UI_RGBA_BUTTONS_PER_CHANNEL + (op))
 
-static Uint8 ui_lerp_u8(Uint8 a, Uint8 b, float t) {
-    if (t < 0.0f) {
-        t = 0.0f;
-    } else if (t > 1.0f) {
-        t = 1.0f;
-    }
-    return (Uint8)(a + (Uint8)((float)(b - a) * t));
-}
-
-static SDL_Color ui_blend_color(SDL_Color a, SDL_Color b, float t) {
-    SDL_Color out = {ui_lerp_u8(a.r, b.r, t), ui_lerp_u8(a.g, b.g, t), ui_lerp_u8(a.b, b.b, t),
-                     ui_lerp_u8(a.a, b.a, t)};
-    return out;
-}
-
-static SDL_Color ui_darken_color(SDL_Color c, float factor) {
-    if (factor < 0.0f) {
-        factor = 0.0f;
-    } else if (factor > 1.0f) {
-        factor = 1.0f;
-    }
-
-    SDL_Color out = {(Uint8)((float)c.r * factor), (Uint8)((float)c.g * factor),
-                     (Uint8)((float)c.b * factor), c.a};
-    return out;
-}
+static void ui_render_text(UIState* ui, const char* text, int x, int y, SDL_Color color);
+static void ui_render_rect(UIState* ui, int x, int y, int w, int h, SDL_Color color);
+static void ui_render_rect_outline(UIState* ui, int x, int y, int w, int h, SDL_Color color);
 
 static void ui_sync_selected_swatch(UIState* ui) {
     if (!ui) {
@@ -662,15 +640,8 @@ void ui_render(UIState* ui, const Palette* palette, const AppConfig* config) {
     const char* action_labels[UI_ACTION_BUTTON_COUNT] = {"Save (S)", "Reset (R)", "Load (L)"};
     for (int i = 0; i < UI_ACTION_BUTTON_COUNT; i++) {
         UIInputElement* btn = &ui->action_buttons[i];
-        SDL_Color button_bg = ui_blend_color(button_base, button_hover, btn->hover_anim_t);
-        if (btn->pressed) {
-            button_bg = ui_darken_color(button_bg, 0.85f);
-        }
-
-        ui_render_rect(ui, (int)btn->bounds.x, (int)btn->bounds.y, (int)btn->bounds.w,
-                       (int)btn->bounds.h, button_bg);
-        ui_render_rect_outline(ui, (int)btn->bounds.x, (int)btn->bounds.y, (int)btn->bounds.w,
-                               (int)btn->bounds.h, (SDL_Color){96, 96, 96, 255});
+        ui_input_widgets_render_button(ui->renderer, btn, button_base, button_hover,
+                                       (SDL_Color){96, 96, 96, 255}, 0.85f);
         ui_render_text(ui, action_labels[i], (int)btn->bounds.x + 5, (int)btn->bounds.y + 5,
                        text_color);
     }
@@ -722,15 +693,8 @@ void ui_render(UIState* ui, const Palette* palette, const AppConfig* config) {
 
         for (int i = 0; i < UI_DIALOG_BUTTON_COUNT; i++) {
             UIInputElement* btn = &ui->save_dialog_buttons[i];
-            SDL_Color dialog_button_bg = ui_blend_color(button_base, button_hover, btn->hover_anim_t);
-            if (btn->pressed) {
-                dialog_button_bg = ui_darken_color(dialog_button_bg, 0.85f);
-            }
-
-            ui_render_rect(ui, (int)btn->bounds.x, (int)btn->bounds.y, (int)btn->bounds.w,
-                           (int)btn->bounds.h, dialog_button_bg);
-            ui_render_rect_outline(ui, (int)btn->bounds.x, (int)btn->bounds.y, (int)btn->bounds.w,
-                                   (int)btn->bounds.h, (SDL_Color){96, 96, 96, 255});
+            ui_input_widgets_render_button(ui->renderer, btn, button_base, button_hover,
+                                           (SDL_Color){96, 96, 96, 255}, 0.85f);
         }
 
         ui_render_text(ui, "Yes", (int)ui->save_dialog_buttons[0].bounds.x + 25,
@@ -986,7 +950,7 @@ static inline void font_assert_init(void) {
 /*==============================
  * 4. Text‑render helper
  *==============================*/
-void ui_render_text(UIState* ui, const char* text, int x, int y, SDL_Color color) {
+static void ui_render_text(UIState* ui, const char* text, int x, int y, SDL_Color color) {
     if (!ui || !text) {
         return;
     }
@@ -1015,7 +979,7 @@ void ui_render_text(UIState* ui, const char* text, int x, int y, SDL_Color color
 /**
  * Render filled rectangle
  */
-void ui_render_rect(UIState* ui, int x, int y, int w, int h, SDL_Color color) {
+static void ui_render_rect(UIState* ui, int x, int y, int w, int h, SDL_Color color) {
     if (!ui) {
         return;
     }
@@ -1028,7 +992,7 @@ void ui_render_rect(UIState* ui, int x, int y, int w, int h, SDL_Color color) {
 /**
  * Render rectangle outline
  */
-void ui_render_rect_outline(UIState* ui, int x, int y, int w, int h, SDL_Color color) {
+static void ui_render_rect_outline(UIState* ui, int x, int y, int w, int h, SDL_Color color) {
     if (!ui) {
         return;
     }
@@ -1036,75 +1000,6 @@ void ui_render_rect_outline(UIState* ui, int x, int y, int w, int h, SDL_Color c
     SDL_SetRenderDrawColor(ui->renderer, color.r, color.g, color.b, color.a);
     SDL_FRect rect = {(float)x, (float)y, (float)w, (float)h};
     SDL_RenderRect(ui->renderer, &rect);
-}
-
-/**
- * Handle clicks on RGBA button controls
- * Returns true if a button was clicked and handled
- */
-bool ui_handle_rgba_button_click(UIState* ui, Palette* palette, float x, float y,
-                                 const AppConfig* config) {
-    if (!ui || !palette)
-        return false;
-
-    PaletteColor current = palette_get_color(palette, ui->selected_swatch);
-    bool clicked = false;
-
-#define IS_BUTTON_CLICKED(mx, my, bx, by, bw, bh) \
-    ((mx) >= (bx) && (mx) <= (bx) + (bw) && (my) >= (by) && (my) <= (by) + (bh))
-
-    for (int i = 0; i < 4; ++i) {  // 0:R, 1:G, 2:B, 3:A
-        float control_y = config->ui_panel_y + 20 + i * config->ui_panel_row_height;
-        if (y >= control_y && y <= control_y + config->button_height) {
-            uint8_t val = (i == 0)   ? current.r
-                          : (i == 1) ? current.g
-                          : (i == 2) ? current.b
-                                     : current.a;
-            uint8_t new_val = val;
-
-            int start_x = config->ui_panel_x + 10;
-            int val_x = start_x + 50;
-            int btn1_x = val_x + config->value_display_width + 5;
-            int btn2_x = btn1_x + config->button_width + 5;
-            int btn3_x = btn2_x + config->button_width + 5;
-            int btn4_x = btn3_x + config->button_width + 5;
-
-            if (IS_BUTTON_CLICKED(x, y, btn1_x, control_y, config->button_width,
-                                  config->button_height)) {
-                new_val = (val >= 10) ? val - 10 : 0;
-                clicked = true;
-            } else if (IS_BUTTON_CLICKED(x, y, btn2_x, control_y, config->button_width,
-                                         config->button_height)) {
-                new_val = (val > 0) ? val - 1 : 0;
-                clicked = true;
-            } else if (IS_BUTTON_CLICKED(x, y, btn3_x, control_y, config->button_width,
-                                         config->button_height)) {
-                new_val = (val < 255) ? val + 1 : 255;
-                clicked = true;
-            } else if (IS_BUTTON_CLICKED(x, y, btn4_x, control_y, config->button_width,
-                                         config->button_height)) {
-                new_val = (val <= 245) ? val + 10 : 255;
-                clicked = true;
-            }
-
-            if (clicked) {
-                uint8_t r = current.r, g = current.g, b = current.b, a = current.a;
-                if (i == 0)
-                    r = new_val;
-                else if (i == 1)
-                    g = new_val;
-                else if (i == 2)
-                    b = new_val;
-                else
-                    a = new_val;
-                palette_set_color(palette, ui->selected_swatch, palette_make_color(r, g, b, a));
-                break;  // Exit loop once a button is handled
-            }
-        }
-    }
-
-#undef IS_BUTTON_CLICKED
-    return clicked;
 }
 
 /**
@@ -1145,26 +1040,14 @@ void ui_render_rgba_controls(UIState* ui, const Palette* palette, const AppConfi
         UIInputElement* b3 = &ui->rgba_buttons[RGBA_BUTTON_INDEX(i, RGBA_OP_PLUS_1)];
         UIInputElement* b4 = &ui->rgba_buttons[RGBA_BUTTON_INDEX(i, RGBA_OP_PLUS_10)];
 
-        SDL_Color b1_bg = ui_blend_color(button_base, button_hover, b1->hover_anim_t);
-        SDL_Color b2_bg = ui_blend_color(button_base, button_hover, b2->hover_anim_t);
-        SDL_Color b3_bg = ui_blend_color(button_base, button_hover, b3->hover_anim_t);
-        SDL_Color b4_bg = ui_blend_color(button_base, button_hover, b4->hover_anim_t);
-
-        if (b1->pressed)
-            b1_bg = ui_darken_color(b1_bg, 0.85f);
-        if (b2->pressed)
-            b2_bg = ui_darken_color(b2_bg, 0.85f);
-        if (b3->pressed)
-            b3_bg = ui_darken_color(b3_bg, 0.85f);
-        if (b4->pressed)
-            b4_bg = ui_darken_color(b4_bg, 0.85f);
-
         // -10 Button
-        ui_render_rect(ui, btn1_x, control_y, config->button_width, config->button_height, b1_bg);
+        ui_input_widgets_render_button(ui->renderer, b1, button_base, button_hover,
+                                       (SDL_Color){96, 96, 96, 255}, 0.85f);
         ui_render_text(ui, "-10", btn1_x + 5, control_y + 5, text_color);
 
         // -1 Button
-        ui_render_rect(ui, btn2_x, control_y, config->button_width, config->button_height, b2_bg);
+        ui_input_widgets_render_button(ui->renderer, b2, button_base, button_hover,
+                                       (SDL_Color){96, 96, 96, 255}, 0.85f);
         ui_render_text(ui, "-1", btn2_x + 8, control_y + 5, text_color);
 
         // Value Display
@@ -1175,11 +1058,13 @@ void ui_render_rgba_controls(UIState* ui, const Palette* palette, const AppConfi
         ui_render_text(ui, val_str, val_x + 10, control_y + 5, text_color);
 
         // +1 Button
-        ui_render_rect(ui, btn3_x, control_y, config->button_width, config->button_height, b3_bg);
+        ui_input_widgets_render_button(ui->renderer, b3, button_base, button_hover,
+                                       (SDL_Color){96, 96, 96, 255}, 0.85f);
         ui_render_text(ui, "+1", btn3_x + 8, control_y + 5, text_color);
 
         // +10 Button
-        ui_render_rect(ui, btn4_x, control_y, config->button_width, config->button_height, b4_bg);
+        ui_input_widgets_render_button(ui->renderer, b4, button_base, button_hover,
+                                       (SDL_Color){96, 96, 96, 255}, 0.85f);
         ui_render_text(ui, "+10", btn4_x + 5, control_y + 5, text_color);
     }
 }

@@ -228,19 +228,6 @@ void ui_show_save_dialog(UIState* ui);
 void ui_reset_palette(UIState* ui, Palette* palette);
 
 /**
- * Handle button clicks for RGBA value adjustment
- * Handles increment/decrement buttons for RGBA values
- *
- * @param ui Pointer to UI state structure
- * @param palette Pointer to palette structure
- * @param x Mouse X coordinate
- * @param y Mouse Y coordinate
- * @return true if a button was clicked, false otherwise
- */
-bool ui_handle_rgba_button_click(UIState* ui, Palette* palette, float x, float y,
-                                 const AppConfig* config);
-
-/**
  * Check for unsaved changes and prompt user
  * Returns true if it's safe to proceed (saved or user chose to discard)
  *
@@ -249,44 +236,6 @@ bool ui_handle_rgba_button_click(UIState* ui, Palette* palette, float x, float y
  * @return true if safe to proceed, false if should cancel operation
  */
 bool ui_check_unsaved_changes(UIState* ui, const Palette* palette);
-
-/**
- * Render text at specified position
- * Simple text rendering function for UI labels
- *
- * @param ui Pointer to UI state structure
- * @param text Text string to render
- * @param x X coordinate
- * @param y Y coordinate
- * @param color Text color (SDL_Color)
- */
-void ui_render_text(UIState* ui, const char* text, int x, int y, SDL_Color color);
-
-/**
- * Render filled rectangle
- * Helper function for drawing UI elements
- *
- * @param ui Pointer to UI state structure
- * @param x X coordinate
- * @param y Y coordinate
- * @param w Width
- * @param h Height
- * @param color Fill color
- */
-void ui_render_rect(UIState* ui, int x, int y, int w, int h, SDL_Color color);
-
-/**
- * Render rectangle outline
- * Helper function for drawing borders
- *
- * @param ui Pointer to UI state structure
- * @param x X coordinate
- * @param y Y coordinate
- * @param w Width
- * @param h Height
- * @param color Border color
- */
-void ui_render_rect_outline(UIState* ui, int x, int y, int w, int h, SDL_Color color);
 
 /**
  * Render RGBA control buttons
