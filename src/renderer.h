@@ -2,6 +2,7 @@
 #define RENDERER_H
 
 #include <memory>
+#include <string>
 #include <vector>
 #include "../shared/config/config_manager.h"
 #include "../shared/sdl_framework/sdl_context.h"
@@ -35,13 +36,15 @@ class Renderer {
    public:
     enum class ObjectType { kPlayer, kEnemy };
     Renderer(const int grid_size, const int grid_width, const int grid_height,
-             std::shared_ptr<GameMap> map_ptr, SDLContext* context);
+             std::shared_ptr<GameMap> map_ptr, SDLContext* context, const std::string& config_path);
     ~Renderer();
 
-    void Render(Player& player, Enemy const enemy);
+    void Render(Player& player, const Enemy& enemy);
     void UpdateWindowTitle(int score, int fps);
 
    private:
+    void RefreshRenderConfig();
+
     void AddCharacterObjects(std::vector<RenderObject>& objects, ObjectType ot,
                              Character::Direction d, int posX, int posY);
 
@@ -54,6 +57,23 @@ class Renderer {
     const int _grid_width;
     const int _grid_height;
     const int _grid_size;
+
+    ConfigColorRGBA _wall_color;
+    ConfigColorRGBA _floor_color;
+    ConfigColorRGBA _player_color;
+    ConfigColorRGBA _player_eye_color;
+    ConfigColorRGBA _enemy_color;
+    ConfigColorRGBA _enemy_eye_color;
+
+    int _eye_offset_x;
+    int _eye_offset_y;
+    int _eye_width;
+    int _eye_height;
+    int _eye_spacing;
+    int _mouth_offset_x;
+    int _mouth_offset_y;
+    int _mouth_width;
+    int _mouth_height;
 };
 
 #endif

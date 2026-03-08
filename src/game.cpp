@@ -2,10 +2,7 @@
 #include "game.h"
 #include <SDL3/SDL.h>
 #include <iostream>
-
-#include <future>
 #include <memory>
-#include <thread>
 
 namespace {
 uint64_t SDL_GetTicksMS() {
@@ -53,9 +50,8 @@ void Game::Run(Controller const& controller, Renderer& renderer,
         // Input, Update, Render - the main game loop.
         controller.HandleInput(running, player);
 
-        // Enemy movement.
-        std::future<void> em = std::async(&Enemy::Move, &enemy);
-        em.get();
+        // Enemy movement runs inline to avoid per-frame async allocation/synchronization overhead.
+        enemy.Move();
         renderer.Render(player, enemy);
 
         frame_end = SDL_GetTicksMS();

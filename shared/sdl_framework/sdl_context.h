@@ -14,6 +14,11 @@ extern "C" {
  * Provides unified SDL3 initialization and context management
  * extracted from common patterns in palette-maker and tile-maker.
  * Handles window creation, renderer setup, and cleanup.
+ *
+ * SDL lifecycle ownership policy:
+ * - `sdl_init_context*` ensures `SDL_INIT_VIDEO` is available.
+ * - `sdl_cleanup_context` only destroys context-owned window/renderer resources.
+ * - Global `SDL_Quit` remains the responsibility of the application/test harness.
  */
 
 /**

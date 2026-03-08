@@ -32,10 +32,12 @@ bool sdl_init_context(SDLContext* ctx, const SDLContextConfig* config) {
         strcpy(ctx->title, "SDL Application");
     }
 
-    // Initialize SDL
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        printf("Error: Could not initialize SDL: %s\n", SDL_GetError());
-        return false;
+    // Initialize SDL video only when the app/test harness has not already done so.
+    if (!sdl_is_subsystem_initialized(SDL_INIT_VIDEO)) {
+        if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+            printf("Error: Could not initialize SDL: %s\n", SDL_GetError());
+            return false;
+        }
     }
 
     // Create window

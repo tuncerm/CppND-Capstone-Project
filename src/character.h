@@ -25,7 +25,7 @@ class Character {
 
     bool IsAlive() const { return _alive; }
 
-    void IsAlive(bool alive) { alive = alive; }
+    void IsAlive(bool alive) { _alive = alive; }
 
     bool IsMoving() const { return _moving; }
 

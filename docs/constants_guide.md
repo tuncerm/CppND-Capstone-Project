@@ -2,6 +2,12 @@
 
 This document outlines the new constants introduced to eliminate magic numbers from the codebase. These constants are organized into separate header files for each major component of the project.
 
+## Build Configuration Notes
+
+- Top-level `ctest` discovery is enabled in `CMakeLists.txt` via `include(CTest)`.
+- Debug sanitizer builds can be enabled with:
+  - `-DENABLE_SANITIZERS=ON` (non-Windows GCC/Clang builds).
+
 ## `src/constants.h`
 
 This file contains constants related to the main game application.

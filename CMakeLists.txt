@@ -10,6 +10,7 @@ include(CTest)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+option(ENABLE_SANITIZERS "Enable Address/Undefined sanitizers for debug builds (GCC/Clang)" OFF)
 
 # Platform detection
 if(WIN32)
@@ -44,6 +45,21 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     endif()
 endif()
 
+if(ENABLE_SANITIZERS)
+    if(WIN32)
+        message(WARNING "ENABLE_SANITIZERS is enabled, but sanitizer flags are only configured for non-Windows builds.")
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        add_compile_options(
+            "$<$<CONFIG:Debug>:-fsanitize=address,undefined>"
+            "$<$<CONFIG:Debug>:-fno-omit-frame-pointer>"
+        )
+        add_link_options(
+            "$<$<CONFIG:Debug>:-fsanitize=address,undefined>"
+        )
+        message(STATUS "Sanitizers enabled for Debug configuration")
+    endif()
+endif()
+
 # Set module path for custom Find modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
@@ -70,6 +86,7 @@ set(SOURCES
     src/enemy.cpp
     src/player.cpp
     src/AICentral.cpp
+    src/path_resolver.cpp
 )
 
 # Create executable

@@ -1,11 +1,13 @@
 #ifndef AICENTRAL_H
 #define AICENTRAL_H
 
+#include <vector>
+
 class AICentral {
    public:
     enum class MapObject { kRoad, kWall, kDark };
 
-    AICentral();
+    AICentral(int rows, int cols);
 
     AICentral(AICentral& source) = delete;
 
@@ -24,10 +26,12 @@ class AICentral {
 
     void AddToMap(int row, int col, MapObject ob);
 
-    MapObject ReadFromMap(int row, int col);
+    MapObject ReadFromMap(int row, int col) const;
 
    private:
-    MapObject _map[20][32];
+    bool IsInBounds(int row, int col) const;
+
+    std::vector<std::vector<MapObject>> _map;
 };
 
 #endif
