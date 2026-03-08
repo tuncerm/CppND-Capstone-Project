@@ -109,6 +109,7 @@ set(SOURCES
     main.c
     palette_io.c
     tiles_io.c
+    tile_specs_io.c
     tile_sheet.c
     pixel_editor.c
     ui.c

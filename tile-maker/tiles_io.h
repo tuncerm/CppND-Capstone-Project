@@ -9,12 +9,12 @@
  */
 #define TILE_WIDTH 8
 #define TILE_HEIGHT 8
-#define TILE_COUNT 64
+#define TILE_COUNT 256
 #define BYTES_PER_TILE 32                              // 8x8 pixels, 2 pixels per byte (4-bit each)
-#define TILES_FILE_SIZE (TILE_COUNT * BYTES_PER_TILE)  // 2048 bytes
+#define TILES_FILE_SIZE (TILE_COUNT * BYTES_PER_TILE)  // 8192 bytes
 
 /**
- * Global tile storage - 64 tiles, each 32 bytes
+ * Global tile storage - 256 tiles, each 32 bytes
  * Each tile is 8x8 pixels, 2 pixels per byte (4-bit palette indices)
  * High nibble = first pixel, low nibble = second pixel
  */
@@ -39,7 +39,7 @@ void tiles_init(void);
 
 /**
  * Load tiles from tiles.dat file
- * File format: 2048 bytes (64 tiles * 32 bytes each)
+ * File format: 8192 bytes (256 tiles * 32 bytes each)
  *
  * @param path File path to load from (typically "tiles.dat")
  * @return true if successful, false on error
@@ -48,7 +48,7 @@ bool tiles_load(const char* path);
 
 /**
  * Save tiles to tiles.dat file
- * File format: 2048 bytes (64 tiles * 32 bytes each)
+ * File format: 8192 bytes (256 tiles * 32 bytes each)
  * Clears the global modified flag on successful save
  *
  * @param path File path to save to (typically "tiles.dat")
@@ -60,7 +60,7 @@ bool tiles_save(const char* path);
  * Get pixel value from a tile
  * Extracts 4-bit palette index from packed storage
  *
- * @param tile_id Tile index (0-63)
+ * @param tile_id Tile index (0-255)
  * @param x Pixel x coordinate (0-7)
  * @param y Pixel y coordinate (0-7)
  * @return 4-bit palette index (0-15)
@@ -72,7 +72,7 @@ uint8_t get_px(int tile_id, int x, int y);
  * Stores 4-bit palette index in packed storage
  * Marks tile as dirty and sets global modified flag
  *
- * @param tile_id Tile index (0-63)
+ * @param tile_id Tile index (0-255)
  * @param x Pixel x coordinate (0-7)
  * @param y Pixel y coordinate (0-7)
  * @param palette_index 4-bit palette index (0-15)
@@ -83,7 +83,7 @@ void set_px(int tile_id, int x, int y, uint8_t palette_index);
  * Clear a tile to specified palette index
  * Sets all pixels in the tile to the given palette index
  *
- * @param tile_id Tile index (0-63)
+ * @param tile_id Tile index (0-255)
  * @param palette_index 4-bit palette index (0-15)
  */
 void clear_tile(int tile_id, uint8_t palette_index);
@@ -112,7 +112,7 @@ void tiles_mark_saved(void);
 /**
  * Mark a specific tile as dirty for texture regeneration
  *
- * @param tile_id Tile index (0-63)
+ * @param tile_id Tile index (0-255)
  */
 void mark_tile_dirty(int tile_id);
 
@@ -124,7 +124,7 @@ void mark_all_tiles_dirty(void);
 /**
  * Check if a tile is dirty and needs texture update
  *
- * @param tile_id Tile index (0-63)
+ * @param tile_id Tile index (0-255)
  * @return true if tile is dirty, false otherwise
  */
 bool is_tile_dirty(int tile_id);

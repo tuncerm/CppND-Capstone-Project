@@ -2,8 +2,8 @@
 #define TILE_MAKER_CONSTANTS_H
 
 // Window dimensions
-#define WINDOW_WIDTH 560
-#define WINDOW_HEIGHT 390
+#define WINDOW_WIDTH 820
+#define WINDOW_HEIGHT 600
 
 // UI layout
 #define PALETTE_BAR_HEIGHT 40
@@ -20,7 +20,7 @@
 // UI Positioning
 #define TILE_SHEET_POS_X 10
 #define TILE_SHEET_POS_Y 50
-#define PIXEL_EDITOR_POS_X 280
+#define PIXEL_EDITOR_POS_X 550
 #define PIXEL_EDITOR_POS_Y 50
 
 // Colors

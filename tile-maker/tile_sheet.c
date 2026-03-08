@@ -13,12 +13,12 @@ bool tile_sheet_init(TileSheet* sheet, SDL_Renderer* renderer) {
     }
 
     // Initialize all textures to NULL
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < TILE_COUNT; i++) {
         sheet->textures[i] = NULL;
     }
 
-    // Calculate tile positions in 8x8 grid
-    for (int i = 0; i < 64; i++) {
+    // Calculate tile positions in 16x16 grid
+    for (int i = 0; i < TILE_COUNT; i++) {
         int row = i / TILE_SHEET_COLS;
         int col = i % TILE_SHEET_COLS;
 
@@ -45,7 +45,7 @@ void tile_sheet_cleanup(TileSheet* sheet) {
         return;
 
     // Destroy all textures
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < TILE_COUNT; i++) {
         if (sheet->textures[i]) {
             SDL_DestroyTexture(sheet->textures[i]);
             sheet->textures[i] = NULL;
@@ -60,7 +60,7 @@ void tile_sheet_cleanup(TileSheet* sheet) {
  * Creates a 32x32 texture from 8x8 tile data (4x magnification)
  */
 SDL_Texture* generate_tile_texture(SDL_Renderer* renderer, int tile_id) {
-    if (!renderer || tile_id < 0 || tile_id >= 64) {
+    if (!renderer || tile_id < 0 || tile_id >= TILE_COUNT) {
         return NULL;
     }
 
@@ -116,7 +116,7 @@ void tile_sheet_update(TileSheet* sheet, SDL_Renderer* renderer) {
     }
 
     // Update dirty tiles
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < TILE_COUNT; i++) {
         if (is_tile_dirty(i)) {
             // Destroy old texture if it exists
             if (sheet->textures[i]) {
@@ -145,7 +145,7 @@ void tile_sheet_render(TileSheet* sheet, SDL_Renderer* renderer, int x, int y) {
     SDL_RenderFillRect(renderer, &bg_rect);
 
     // Draw tile textures
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < TILE_COUNT; i++) {
         if (sheet->textures[i]) {
             SDL_FRect dest_rect = {x + sheet->tile_rects[i].x, y + sheet->tile_rects[i].y,
                                    TILE_DISPLAY_SIZE, TILE_DISPLAY_SIZE};
@@ -207,7 +207,7 @@ int tile_sheet_handle_input(TileSheet* sheet, int panel_x, int panel_y, int mous
     int tile_id = tile_row * TILE_SHEET_COLS + tile_col;
 
     // Clamp to valid range
-    if (tile_id < 0 || tile_id >= 64) {
+    if (tile_id < 0 || tile_id >= TILE_COUNT) {
         sheet->hover_tile = -1;
         return -1;
     }
@@ -242,8 +242,8 @@ void tile_sheet_set_selected(TileSheet* sheet, int tile_id) {
     // Clamp to valid range
     if (tile_id < 0)
         tile_id = 0;
-    if (tile_id >= 64)
-        tile_id = 63;
+    if (tile_id >= TILE_COUNT)
+        tile_id = TILE_COUNT - 1;
 
     sheet->selected_tile = tile_id;
 }
@@ -278,7 +278,7 @@ void tile_sheet_navigate(TileSheet* sheet, int direction, bool horizontal) {
                 if (current_row > 0) {
                     new_tile = current_row * TILE_SHEET_COLS - 1;
                 } else {
-                    new_tile = 63;  // Wrap to last tile
+                    new_tile = TILE_COUNT - 1;  // Wrap to last tile
                 }
             }
         }
@@ -288,17 +288,17 @@ void tile_sheet_navigate(TileSheet* sheet, int direction, bool horizontal) {
 
         // Wrap around at column boundaries
         if (new_tile < 0) {
-            new_tile += 64;  // Wrap to bottom
-        } else if (new_tile >= 64) {
-            new_tile -= 64;  // Wrap to top
+            new_tile += TILE_COUNT;  // Wrap to bottom
+        } else if (new_tile >= TILE_COUNT) {
+            new_tile -= TILE_COUNT;  // Wrap to top
         }
     }
 
     // Clamp to valid range
     if (new_tile < 0)
         new_tile = 0;
-    if (new_tile >= 64)
-        new_tile = 63;
+    if (new_tile >= TILE_COUNT)
+        new_tile = TILE_COUNT - 1;
 
     sheet->selected_tile = new_tile;
 }

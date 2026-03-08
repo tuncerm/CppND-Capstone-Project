@@ -3,7 +3,7 @@
 #include <string.h>
 
 /**
- * Global tile storage - 64 tiles, each 32 bytes
+ * Global tile storage - 256 tiles, each 32 bytes
  * Each tile is 8x8 pixels, 2 pixels per byte (4-bit palette indices)
  * Storage format: high nibble = first pixel, low nibble = second pixel
  */
@@ -38,7 +38,7 @@ void tiles_init(void) {
 
 /**
  * Load tiles from binary file
- * Expected format: 2048 bytes (64 tiles × 32 bytes each)
+ * Expected format: 8192 bytes (256 tiles × 32 bytes each)
  */
 bool tiles_load(const char* path) {
     if (!path) {
@@ -92,7 +92,7 @@ bool tiles_load(const char* path) {
 
 /**
  * Save tiles to binary file
- * Saves exactly 2048 bytes (64 tiles × 32 bytes each)
+ * Saves exactly 8192 bytes (256 tiles × 32 bytes each)
  */
 bool tiles_save(const char* path) {
     if (!path) {

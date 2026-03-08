@@ -5,18 +5,18 @@
     "version": "1.0"
   },
   "display": {
-    "window_width": 560,
-    "window_height": 390,
+    "window_width": 820,
+    "window_height": 600,
     "window_title": "Tile Maker v1.0 - SDL3 Edition"
   },
   "ui": {
     "palette_bar_height": 50,
     "button_width": 80,
     "button_height": 30,
-    "palette_swatch_size": 30,
+    "palette_swatch_size": 24,
     "tile_sheet_x": 10,
     "tile_sheet_y": 50,
-    "pixel_editor_x": 280,
+    "pixel_editor_x": 550,
     "pixel_editor_y": 50
   },
   "colors": {
@@ -30,6 +30,7 @@
   },
   "files": {
     "default_tiles_file": "tiles.dat",
-    "default_palette_file": "palette.dat"
+    "default_palette_file": "palette.dat",
+    "default_tile_specs_file": "tile_specs.dat"
   }
 }

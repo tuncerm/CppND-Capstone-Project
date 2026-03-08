@@ -17,7 +17,7 @@
 typedef struct {
     SDL_Texture* tile_texture;  // Current tile texture (256x256)
     SDL_Texture* grid_texture;  // Grid overlay texture
-    int current_tile;           // Currently edited tile ID (0-63)
+    int current_tile;           // Currently edited tile ID (0-255)
     int current_color;          // Current paint color (palette index 0-15)
     bool show_grid;             // Grid overlay visibility
     bool needs_rebuild;         // Flag to rebuild tile texture
@@ -47,7 +47,7 @@ void pixel_editor_cleanup(PixelEditor* editor);
  * Changes the current tile and rebuilds the texture
  *
  * @param editor Pointer to pixel editor structure
- * @param tile_id Tile ID to edit (0-63)
+ * @param tile_id Tile ID to edit (0-255)
  */
 void pixel_editor_set_tile(PixelEditor* editor, int tile_id);
 
@@ -107,7 +107,7 @@ bool pixel_editor_handle_input(PixelEditor* editor, int x, int y, int mouse_x, i
  * Get current tile being edited
  *
  * @param editor Pointer to pixel editor structure
- * @return Current tile ID (0-63)
+ * @return Current tile ID (0-255)
  */
 int pixel_editor_get_tile(const PixelEditor* editor);
 
@@ -132,7 +132,7 @@ bool pixel_editor_grid_visible(const PixelEditor* editor);
  * Creates a 256x256 texture from 8x8 tile data (32x magnification)
  *
  * @param renderer SDL renderer
- * @param tile_id Tile ID (0-63)
+ * @param tile_id Tile ID (0-255)
  * @return New SDL_Texture or NULL on error
  */
 SDL_Texture* generate_pixel_editor_texture(SDL_Renderer* renderer, int tile_id);

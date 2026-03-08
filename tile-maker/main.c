@@ -8,6 +8,7 @@
 #include "../shared/ui_framework/ui_viewport.h"
 #include "palette_io.h"
 #include "pixel_editor.h"
+#include "tile_specs_io.h"
 #include "tile_sheet.h"
 #include "tiles_io.h"
 #include "ui.h"
@@ -33,6 +34,8 @@ typedef struct {
 
     char tiles_file_path[CONFIG_MAX_PATH_LENGTH];
     char palette_file_path[CONFIG_MAX_PATH_LENGTH];
+    char tile_specs_file_path[CONFIG_MAX_PATH_LENGTH];
+    int last_status_tile;
 } AppState;
 
 static bool file_exists(const char* path) {
@@ -73,6 +76,56 @@ static void app_resolve_file_path(char* out, size_t out_size, const char* config
     out[out_size - 1] = '\0';
 }
 
+static bool app_has_unsaved_changes(const AppState* app) {
+    (void)app;
+    return tiles_is_modified() || tile_specs_is_modified();
+}
+
+static void app_set_tile_spec_status(AppState* app, int tile_id) {
+    if (!app || tile_id < 0 || tile_id >= TILE_COUNT) {
+        return;
+    }
+
+    char status[256];
+    snprintf(status, sizeof(status),
+             "Tile %03d  H:%u  D:%u  M:%u  ([ ] health, , . destroy, ; ' move)", tile_id,
+             (unsigned)tile_spec_get_health(tile_id), (unsigned)tile_spec_get_destruction_mode(tile_id),
+             (unsigned)tile_spec_get_movement(tile_id));
+    ui_set_status(&app->ui, status);
+    app->last_status_tile = tile_id;
+}
+
+static bool app_save_all(AppState* app) {
+    if (!app) {
+        return false;
+    }
+
+    bool ok_tiles = tiles_save(app->tiles_file_path);
+    bool ok_specs = tile_specs_save(app->tile_specs_file_path);
+    if (ok_tiles && ok_specs) {
+        ui_set_dirty(&app->ui, false);
+        return true;
+    }
+
+    return false;
+}
+
+static bool app_load_all(AppState* app) {
+    if (!app) {
+        return false;
+    }
+
+    bool ok_tiles = tiles_load(app->tiles_file_path);
+    bool ok_specs = tile_specs_load(app->tile_specs_file_path);
+    if (!ok_specs) {
+        // Keep running with defaults even if specs file is missing/invalid.
+        tile_specs_reset_defaults();
+    }
+
+    ui_set_dirty(&app->ui, app_has_unsaved_changes(app));
+    return ok_tiles;
+}
+
 /**
  * Initialize the application
  */
@@ -109,6 +162,8 @@ bool app_init(AppState* app) {
                           config_make_string("tiles.dat"), false);
     config_register_entry(&app->config, "files", "default_palette_file", CONFIG_TYPE_STRING,
                           config_make_string("palette.dat"), false);
+    config_register_entry(&app->config, "files", "default_tile_specs_file", CONFIG_TYPE_STRING,
+                          config_make_string("tile_specs.dat"), false);
 
     // Load configuration file
     const char* config_path = resolve_tilemaker_config_path();
@@ -132,11 +187,15 @@ bool app_init(AppState* app) {
         config_get_string(&app->config, "files", "default_tiles_file", "tiles.dat");
     const char* configured_palette_file =
         config_get_string(&app->config, "files", "default_palette_file", "palette.dat");
+    const char* configured_tile_specs_file =
+        config_get_string(&app->config, "files", "default_tile_specs_file", "tile_specs.dat");
 
     app_resolve_file_path(app->tiles_file_path, sizeof(app->tiles_file_path), configured_tiles_file,
                           "tiles.dat");
     app_resolve_file_path(app->palette_file_path, sizeof(app->palette_file_path),
                           configured_palette_file, "palette.dat");
+    app_resolve_file_path(app->tile_specs_file_path, sizeof(app->tile_specs_file_path),
+                          configured_tile_specs_file, "tile_specs.dat");
 
     printf("Starting Tile Maker with configuration:\n");
     printf("  Config file: %s\n", config_path);
@@ -144,6 +203,7 @@ bool app_init(AppState* app) {
     printf("  Title: %s\n", window_title);
     printf("  Tiles file: %s\n", app->tiles_file_path);
     printf("  Palette file: %s\n", app->palette_file_path);
+    printf("  Tile specs file: %s\n", app->tile_specs_file_path);
 
     // Initialize SDL
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
@@ -168,7 +228,7 @@ bool app_init(AppState* app) {
         return false;
     }
 
-    if (!SDL_SetRenderLogicalPresentation(app->renderer, WINDOW_WIDTH, WINDOW_HEIGHT,
+    if (!SDL_SetRenderLogicalPresentation(app->renderer, window_width, window_height,
                                           SDL_LOGICAL_PRESENTATION_LETTERBOX)) {
         printf("Warning: Failed to set logical presentation: %s\n", SDL_GetError());
     }
@@ -197,6 +257,7 @@ bool app_init(AppState* app) {
     }
 
     app->running = true;
+    app->last_status_tile = -1;
 
     printf("Tile Maker initialized successfully\n");
     return true;
@@ -242,7 +303,7 @@ void app_handle_events(AppState* app) {
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
             case SDL_EVENT_QUIT:
-                if (tiles_is_modified()) {
+                if (app_has_unsaved_changes(app)) {
                     app->ui.show_quit_dialog = true;
                 } else {
                     app->running = false;
@@ -317,7 +378,7 @@ void app_handle_keyboard(AppState* app) {
     // ESC - Quit (with save prompt if dirty)
     if (app->keys[SDL_SCANCODE_ESCAPE]) {
         app->keys[SDL_SCANCODE_ESCAPE] = false;
-        if (tiles_is_modified()) {
+        if (app_has_unsaved_changes(app)) {
             app->ui.show_quit_dialog = true;
         } else {
             app->running = false;
@@ -327,22 +388,21 @@ void app_handle_keyboard(AppState* app) {
     // S - Save
     if (app->keys[SDL_SCANCODE_S]) {
         app->keys[SDL_SCANCODE_S] = false;
-        if (tiles_save(app->tiles_file_path)) {
-            ui_set_status(&app->ui, "Tiles saved successfully");
-            ui_set_dirty(&app->ui, false);
+        if (app_save_all(app)) {
+            ui_set_status(&app->ui, "Tiles and specs saved successfully");
         } else {
-            ui_set_status(&app->ui, "Failed to save tiles");
+            ui_set_status(&app->ui, "Failed to save tiles/specs");
         }
     }
 
     // L - Load
     if (app->keys[SDL_SCANCODE_L]) {
         app->keys[SDL_SCANCODE_L] = false;
-        if (tiles_load(app->tiles_file_path)) {
-            ui_set_status(&app->ui, "Tiles loaded successfully");
-            ui_set_dirty(&app->ui, false);
+        if (app_load_all(app)) {
+            ui_set_status(&app->ui, "Tiles loaded (specs loaded/defaulted)");
             tile_sheet_set_selected(&app->tile_sheet, 0);
             pixel_editor_set_tile(&app->pixel_editor, 0);
+            app_set_tile_spec_status(app, 0);
         } else {
             ui_set_status(&app->ui, "Failed to load tiles");
         }
@@ -361,8 +421,70 @@ void app_handle_keyboard(AppState* app) {
         (app->keys[SDL_SCANCODE_LCTRL] || app->keys[SDL_SCANCODE_RCTRL])) {
         app->keys[SDL_SCANCODE_N] = false;
         clear_all_tiles(0);  // Clear to palette index 0 (black)
-        ui_set_status(&app->ui, "All tiles cleared");
+        tile_specs_reset_defaults();
+        ui_set_status(&app->ui, "All tiles/specs reset");
         ui_set_dirty(&app->ui, true);
+    }
+
+    // Tile spec editing shortcuts for selected tile:
+    // [ ] health down/up, , . destruction mode down/up, ; ' movement down/up
+    {
+        const int selected_tile = tile_sheet_get_selected(&app->tile_sheet);
+        bool spec_changed = false;
+
+        if (app->keys[SDL_SCANCODE_LEFTBRACKET]) {
+            app->keys[SDL_SCANCODE_LEFTBRACKET] = false;
+            uint8_t health = tile_spec_get_health(selected_tile);
+            if (health > 0) {
+                tile_spec_set_health(selected_tile, (uint8_t)(health - 1));
+                spec_changed = true;
+            }
+        }
+        if (app->keys[SDL_SCANCODE_RIGHTBRACKET]) {
+            app->keys[SDL_SCANCODE_RIGHTBRACKET] = false;
+            uint8_t health = tile_spec_get_health(selected_tile);
+            if (health < TILE_SPEC_HEALTH_MASK) {
+                tile_spec_set_health(selected_tile, (uint8_t)(health + 1));
+                spec_changed = true;
+            }
+        }
+        if (app->keys[SDL_SCANCODE_COMMA]) {
+            app->keys[SDL_SCANCODE_COMMA] = false;
+            uint8_t mode = tile_spec_get_destruction_mode(selected_tile);
+            if (mode > 0) {
+                tile_spec_set_destruction_mode(selected_tile, (uint8_t)(mode - 1));
+                spec_changed = true;
+            }
+        }
+        if (app->keys[SDL_SCANCODE_PERIOD]) {
+            app->keys[SDL_SCANCODE_PERIOD] = false;
+            uint8_t mode = tile_spec_get_destruction_mode(selected_tile);
+            if (mode < TILE_SPEC_DESTRUCT_MASK) {
+                tile_spec_set_destruction_mode(selected_tile, (uint8_t)(mode + 1));
+                spec_changed = true;
+            }
+        }
+        if (app->keys[SDL_SCANCODE_SEMICOLON]) {
+            app->keys[SDL_SCANCODE_SEMICOLON] = false;
+            uint8_t movement = tile_spec_get_movement(selected_tile);
+            if (movement > 0) {
+                tile_spec_set_movement(selected_tile, (uint8_t)(movement - 1));
+                spec_changed = true;
+            }
+        }
+        if (app->keys[SDL_SCANCODE_APOSTROPHE]) {
+            app->keys[SDL_SCANCODE_APOSTROPHE] = false;
+            uint8_t movement = tile_spec_get_movement(selected_tile);
+            if (movement < TILE_SPEC_MOVEMENT_MASK) {
+                tile_spec_set_movement(selected_tile, (uint8_t)(movement + 1));
+                spec_changed = true;
+            }
+        }
+
+        if (spec_changed) {
+            ui_set_dirty(&app->ui, true);
+            app_set_tile_spec_status(app, selected_tile);
+        }
     }
 
     // Arrow keys - Navigate tile selection
@@ -371,6 +493,7 @@ void app_handle_keyboard(AppState* app) {
         tile_sheet_navigate(&app->tile_sheet, -1, true);
         int selected = tile_sheet_get_selected(&app->tile_sheet);
         pixel_editor_set_tile(&app->pixel_editor, selected);
+        app_set_tile_spec_status(app, selected);
     }
 
     if (app->keys[SDL_SCANCODE_RIGHT]) {
@@ -378,6 +501,7 @@ void app_handle_keyboard(AppState* app) {
         tile_sheet_navigate(&app->tile_sheet, 1, true);
         int selected = tile_sheet_get_selected(&app->tile_sheet);
         pixel_editor_set_tile(&app->pixel_editor, selected);
+        app_set_tile_spec_status(app, selected);
     }
 
     if (app->keys[SDL_SCANCODE_UP]) {
@@ -385,6 +509,7 @@ void app_handle_keyboard(AppState* app) {
         tile_sheet_navigate(&app->tile_sheet, -1, false);
         int selected = tile_sheet_get_selected(&app->tile_sheet);
         pixel_editor_set_tile(&app->pixel_editor, selected);
+        app_set_tile_spec_status(app, selected);
     }
 
     if (app->keys[SDL_SCANCODE_DOWN]) {
@@ -392,6 +517,7 @@ void app_handle_keyboard(AppState* app) {
         tile_sheet_navigate(&app->tile_sheet, 1, false);
         int selected = tile_sheet_get_selected(&app->tile_sheet);
         pixel_editor_set_tile(&app->pixel_editor, selected);
+        app_set_tile_spec_status(app, selected);
     }
 }
 
@@ -408,7 +534,7 @@ void app_update(AppState* app) {
     ui_update(&app->ui, app->renderer);
 
     // Update UI dirty indicator
-    ui_set_dirty(&app->ui, tiles_is_modified());
+    ui_set_dirty(&app->ui, app_has_unsaved_changes(app));
 
     // Handle UI mouse input
     int ui_action = ui_handle_mouse(&app->ui, app->mouse_x, app->mouse_y,
@@ -420,27 +546,29 @@ void app_update(AppState* app) {
         pixel_editor_set_color(&app->pixel_editor, palette_index);
     } else if (ui_action == 1) {
         // Save
-        if (tiles_save(app->tiles_file_path)) {
-            ui_set_status(&app->ui, "Tiles saved successfully");
+        if (app_save_all(app)) {
+            ui_set_status(&app->ui, "Tiles and specs saved successfully");
         } else {
-            ui_set_status(&app->ui, "Failed to save tiles");
+            ui_set_status(&app->ui, "Failed to save tiles/specs");
         }
     } else if (ui_action == 2) {
         // Load
-        if (tiles_load(app->tiles_file_path)) {
-            ui_set_status(&app->ui, "Tiles loaded successfully");
+        if (app_load_all(app)) {
+            ui_set_status(&app->ui, "Tiles loaded (specs loaded/defaulted)");
             tile_sheet_set_selected(&app->tile_sheet, 0);
             pixel_editor_set_tile(&app->pixel_editor, 0);
+            app_set_tile_spec_status(app, 0);
         } else {
             ui_set_status(&app->ui, "Failed to load tiles");
         }
     } else if (ui_action == 3) {
         // New
         clear_all_tiles(0);
-        ui_set_status(&app->ui, "All tiles cleared");
+        tile_specs_reset_defaults();
+        ui_set_status(&app->ui, "All tiles/specs reset");
     } else if (ui_action == 4) {
         // Quit
-        if (tiles_is_modified()) {
+        if (app_has_unsaved_changes(app)) {
             app->ui.show_quit_dialog = true;
         } else {
             app->running = false;
@@ -450,7 +578,7 @@ void app_update(AppState* app) {
         app->running = false;
     }
 
-    // Handle tile sheet input (10, 10 is the tile sheet position)
+    // Handle tile sheet input (tile sheet panel position)
     int hovered_tile = tile_sheet_handle_input(
         &app->tile_sheet, TILE_SHEET_POS_X, TILE_SHEET_POS_Y, app->mouse_x, app->mouse_y,
         app->mouse_clicked[SDL_BUTTON_LEFT], ui_check_double_click(&app->ui, -1));
@@ -461,7 +589,11 @@ void app_update(AppState* app) {
         pixel_editor_set_tile(&app->pixel_editor, app->tile_sheet.selected_tile);
     }
 
-    // Handle pixel editor input (280, 50 is the pixel editor position)
+    if (app->tile_sheet.selected_tile != app->last_status_tile) {
+        app_set_tile_spec_status(app, app->tile_sheet.selected_tile);
+    }
+
+    // Handle pixel editor input (pixel editor panel position)
     bool pixel_modified = pixel_editor_handle_input(
         &app->pixel_editor, PIXEL_EDITOR_POS_X, PIXEL_EDITOR_POS_Y, app->mouse_x, app->mouse_y,
         app->mouse_buttons[SDL_BUTTON_LEFT], app->mouse_buttons[SDL_BUTTON_RIGHT],
@@ -516,6 +648,9 @@ int main(int argc, char* argv[]) {
     printf("  - L: Load tiles\n");
     printf("  - G: Toggle pixel grid\n");
     printf("  - Ctrl+N: Clear all tiles\n");
+    printf("  - [ / ]: Decrease/increase selected tile health\n");
+    printf("  - , / .: Decrease/increase selected tile destruction mode\n");
+    printf("  - ; / ': Decrease/increase selected tile movement mode\n");
     printf("  - Arrow keys: Navigate tile selection\n");
     printf("  - ESC: Quit\n");
     printf("\n");
@@ -534,13 +669,14 @@ int main(int argc, char* argv[]) {
     }
 
     tiles_init();
-    if (tiles_load(app.tiles_file_path)) {
-        ui_set_status(&app.ui, "Tiles loaded successfully");
-        ui_set_dirty(&app.ui, false);
+    tile_specs_init();
+
+    if (app_load_all(&app)) {
+        ui_set_status(&app.ui, "Tiles loaded (specs loaded/defaulted)");
     } else {
         ui_set_status(&app.ui, "New tile set - no tiles file found");
-        ui_set_dirty(&app.ui, true);
     }
+    app_set_tile_spec_status(&app, 0);
 
     // Main application loop
     printf("Starting main application loop...\n");
@@ -563,10 +699,11 @@ int main(int argc, char* argv[]) {
     }
 
     // Check for unsaved changes before exiting
-    if (tiles_is_modified()) {
+    if (app_has_unsaved_changes(&app)) {
         printf("\nWarning: You have unsaved changes!\n");
-        printf("Your tiles have been modified but not saved.\n");
-        printf("Consider saving your work with '%s'.\n", app.tiles_file_path);
+        printf("Your tiles/specs have been modified but not saved.\n");
+        printf("Consider saving your work with '%s' and '%s'.\n", app.tiles_file_path,
+               app.tile_specs_file_path);
     }
 
     // Cleanup and exit

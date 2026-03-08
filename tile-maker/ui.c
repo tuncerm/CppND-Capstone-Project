@@ -4,6 +4,7 @@
 #include <string.h>
 #include "ui_input_widgets.h"
 #include "palette_io.h"
+#include "pixel_editor.h"
 
 #define DOUBLE_CLICK_THRESHOLD_MS 500
 #define PALETTE_ID_BASE 1000
@@ -13,8 +14,8 @@
 #define ACTION_ID_QUIT 2004
 #define DIALOG_ID_YES 3001
 #define DIALOG_ID_NO 3002
-#define PALETTE_SWATCH_COLUMNS 16
-#define PALETTE_SWATCH_ROWS 1
+#define PALETTE_SWATCH_COLUMNS 8
+#define PALETTE_SWATCH_ROWS 2
 #define PALETTE_PANEL_PADDING 8
 #define PALETTE_SWATCH_GAP 6
 
@@ -95,8 +96,8 @@ bool ui_init(UIState* ui, SDL_Renderer* renderer) {
     const int palette_panel_h =
         PALETTE_PANEL_PADDING * 2 + PALETTE_SWATCH_ROWS * PALETTE_SWATCH_SIZE +
         (PALETTE_SWATCH_ROWS - 1) * PALETTE_SWATCH_GAP;
-    ui->palette_bar_rect.x = 10.0f;
-    ui->palette_bar_rect.y = (float)(WINDOW_HEIGHT - palette_panel_h - 10);
+    ui->palette_bar_rect.x = (float)PIXEL_EDITOR_POS_X;
+    ui->palette_bar_rect.y = (float)(PIXEL_EDITOR_POS_Y + PIXEL_EDITOR_HEIGHT + 14);
     ui->palette_bar_rect.w = (float)palette_panel_w;
     ui->palette_bar_rect.h = (float)palette_panel_h;
 
@@ -247,13 +248,14 @@ void ui_render(UIState* ui, SDL_Renderer* renderer) {
     render_button(ui, &ui->new_button);
     render_button(ui, &ui->quit_button);
 
-    // Render status text above the palette panel.
+    // Render a fixed bottom status bar so text never overlaps the tile grid.
     SDL_Color text_color = {255, 255, 255, 255};
-    int status_y = (int)ui->palette_bar_rect.y - 18;
-    if (status_y < BUTTON_HEIGHT + 20) {
-        status_y = BUTTON_HEIGHT + 20;
-    }
-    render_text(ui, ui->status_text, 10, status_y, text_color);
+    SDL_FRect status_bar = {0.0f, (float)(WINDOW_HEIGHT - 24), (float)WINDOW_WIDTH, 24.0f};
+    SDL_SetRenderDrawColor(renderer, 24, 24, 24, 255);
+    SDL_RenderFillRect(renderer, &status_bar);
+    SDL_SetRenderDrawColor(renderer, 72, 72, 72, 255);
+    SDL_RenderRect(renderer, &status_bar);
+    render_text(ui, ui->status_text, 10, WINDOW_HEIGHT - 18, text_color);
 
     // Render dirty indicator
     if (ui->dirty_indicator) {

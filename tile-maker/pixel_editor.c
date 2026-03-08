@@ -60,8 +60,8 @@ void pixel_editor_set_tile(PixelEditor* editor, int tile_id) {
     // Clamp to valid range
     if (tile_id < 0)
         tile_id = 0;
-    if (tile_id >= 64)
-        tile_id = 63;
+    if (tile_id >= TILE_COUNT)
+        tile_id = TILE_COUNT - 1;
 
     if (editor->current_tile != tile_id) {
         editor->current_tile = tile_id;
@@ -98,7 +98,7 @@ void pixel_editor_toggle_grid(PixelEditor* editor) {
  * Generate pixel editor texture for current tile
  */
 SDL_Texture* generate_pixel_editor_texture(SDL_Renderer* renderer, int tile_id) {
-    if (!renderer || tile_id < 0 || tile_id >= 64) {
+    if (!renderer || tile_id < 0 || tile_id >= TILE_COUNT) {
         return NULL;
     }
 

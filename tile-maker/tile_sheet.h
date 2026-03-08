@@ -3,23 +3,24 @@
 
 #include <SDL3/SDL.h>
 #include <stdbool.h>
+#include "tiles_io.h"
 
 /**
  * Tile sheet panel constants
  */
-#define TILE_SHEET_WIDTH 256
-#define TILE_SHEET_HEIGHT 256
-#define TILE_SHEET_COLS 8
-#define TILE_SHEET_ROWS 8
+#define TILE_SHEET_WIDTH 512
+#define TILE_SHEET_HEIGHT 512
+#define TILE_SHEET_COLS 16
+#define TILE_SHEET_ROWS 16
 #define TILE_DISPLAY_SIZE 32  // Each tile displayed as 32x32 pixels (4x magnification)
 
 /**
  * Tile sheet state structure
  */
 typedef struct {
-    SDL_Texture* textures[64];  // One texture per tile (32x32 pixels each)
-    SDL_Rect tile_rects[64];    // Position rectangles for each tile
-    int selected_tile;          // Currently selected tile (0-63)
+    SDL_Texture* textures[TILE_COUNT];  // One texture per tile (32x32 pixels each)
+    SDL_Rect tile_rects[TILE_COUNT];    // Position rectangles for each tile
+    int selected_tile;                  // Currently selected tile (0-255)
     int hover_tile;             // Tile being hovered over (-1 if none)
     bool needs_rebuild;         // Flag to rebuild all textures
 } TileSheet;
@@ -82,7 +83,7 @@ int tile_sheet_handle_input(TileSheet* sheet, int x, int y, int mouse_x, int mou
  * Get currently selected tile
  *
  * @param sheet Pointer to tile sheet structure
- * @return Selected tile ID (0-63)
+ * @return Selected tile ID (0-255)
  */
 int tile_sheet_get_selected(const TileSheet* sheet);
 
@@ -90,7 +91,7 @@ int tile_sheet_get_selected(const TileSheet* sheet);
  * Set selected tile
  *
  * @param sheet Pointer to tile sheet structure
- * @param tile_id Tile ID to select (0-63)
+ * @param tile_id Tile ID to select (0-255)
  */
 void tile_sheet_set_selected(TileSheet* sheet, int tile_id);
 
@@ -108,7 +109,7 @@ void tile_sheet_navigate(TileSheet* sheet, int direction, bool horizontal);
  * Creates a 32x32 texture from 8x8 tile data (4x magnification)
  *
  * @param renderer SDL renderer
- * @param tile_id Tile ID (0-63)
+ * @param tile_id Tile ID (0-255)
  * @return New SDL_Texture or NULL on error
  */
 SDL_Texture* generate_tile_texture(SDL_Renderer* renderer, int tile_id);

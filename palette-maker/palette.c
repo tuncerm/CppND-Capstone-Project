@@ -3,6 +3,25 @@
 #include <stdlib.h>
 #include <string.h>
 
+static const PaletteColor kDefaultColors[16] = {
+    {0, 0, 0, 255},        // #000000
+    {252, 252, 252, 255},  // #FCFCFC
+    {188, 188, 188, 255},  // #BCBCBC
+    {116, 116, 116, 255},  // #747474
+    {228, 196, 16, 255},   // #E4C410
+    {188, 68, 0, 255},     // #BC4400
+    {60, 188, 252, 255},   // #3CBCFC
+    {0, 112, 0, 255},      // #007000
+    {248, 120, 88, 255},   // #F87858
+    {0, 120, 248, 255},    // #0078F8
+    {0, 184, 0, 255},      // #00B800
+    {172, 212, 252, 255},  // #ACD4FC
+    {248, 184, 0, 255},    // #F8B800
+    {168, 0, 224, 255},    // #A800E0
+    {124, 60, 0, 255},     // #7C3C00
+    {0, 232, 216, 255}     // #00E8D8
+};
+
 /**
  * Initialize a palette with default 16-color palette
  * Creates a standard set of colors suitable for retro games
@@ -11,30 +30,9 @@ void palette_init(Palette* palette, const AppConfig* config) {
     if (!palette)
         return;
 
-    // Initialize with a classic 16-color palette similar to EGA/VGA
-    // Colors arranged for good visual variety and usefulness
-    const PaletteColor default_colors[16] = {
-        {0, 0, 0, 255},        // 0: Black
-        {128, 0, 0, 255},      // 1: Dark Red
-        {0, 128, 0, 255},      // 2: Dark Green
-        {128, 128, 0, 255},    // 3: Dark Yellow/Brown
-        {0, 0, 128, 255},      // 4: Dark Blue
-        {128, 0, 128, 255},    // 5: Dark Magenta
-        {0, 128, 128, 255},    // 6: Dark Cyan
-        {192, 192, 192, 255},  // 7: Light Gray
-        {128, 128, 128, 255},  // 8: Dark Gray
-        {255, 0, 0, 255},      // 9: Bright Red
-        {0, 255, 0, 255},      // 10: Bright Green
-        {255, 255, 0, 255},    // 11: Bright Yellow
-        {0, 0, 255, 255},      // 12: Bright Blue
-        {255, 0, 255, 255},    // 13: Bright Magenta
-        {0, 255, 255, 255},    // 14: Bright Cyan
-        {255, 255, 255, 255}   // 15: White
-    };
-
     // Copy default colors to palette
     for (int i = 0; i < config->color_count && i < 16; i++) {
-        palette->colors[i] = default_colors[i];
+        palette->colors[i] = kDefaultColors[i];
     }
 
     palette->modified = false;
@@ -49,29 +47,9 @@ void palette_reset_to_default(Palette* palette) {
     if (!palette)
         return;
 
-    // Use the same default colors as palette_init
-    const PaletteColor default_colors[16] = {
-        {0, 0, 0, 255},        // 0: Black
-        {128, 0, 0, 255},      // 1: Dark Red
-        {0, 128, 0, 255},      // 2: Dark Green
-        {128, 128, 0, 255},    // 3: Dark Yellow/Brown
-        {0, 0, 128, 255},      // 4: Dark Blue
-        {128, 0, 128, 255},    // 5: Dark Magenta
-        {0, 128, 128, 255},    // 6: Dark Cyan
-        {192, 192, 192, 255},  // 7: Light Gray
-        {128, 128, 128, 255},  // 8: Dark Gray
-        {255, 0, 0, 255},      // 9: Bright Red
-        {0, 255, 0, 255},      // 10: Bright Green
-        {255, 255, 0, 255},    // 11: Bright Yellow
-        {0, 0, 255, 255},      // 12: Bright Blue
-        {255, 0, 255, 255},    // 13: Bright Magenta
-        {0, 255, 255, 255},    // 14: Bright Cyan
-        {255, 255, 255, 255}   // 15: White
-    };
-
     // Copy default colors to palette
     for (int i = 0; i < 16; i++) {
-        palette->colors[i] = default_colors[i];
+        palette->colors[i] = kDefaultColors[i];
     }
 
     palette->modified = true;  // Mark as modified since this is a user action
