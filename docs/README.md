@@ -4,7 +4,7 @@ This directory contains project-level engineering notes and status tracking.
 
 ## Files
 - `project_analysis.md`: Current project analysis summary and validation snapshot.
-- `todo_from_project_analysis.md`: Follow-up action list derived from project analysis.
+- `todo.md`: Active TODO list.
 - `constants_guide.md`: Reference for constant definitions and where to edit them.
 
 ## Maintenance rules
