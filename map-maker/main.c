@@ -48,10 +48,11 @@
 #define MENU_BUTTON_Y 14
 #define MENU_BUTTON_W 90
 #define MENU_BUTTON_H 26
-#define MENU_DIALOG_W 320
-#define MENU_OPTION_W 220
+#define MENU_DIALOG_W 560
+#define MENU_OPTION_W 500
 #define MENU_OPTION_H 30
 #define MENU_OPTION_GAP 10
+#define MAP_CHOICE_LIMIT 8
 
 typedef struct {
     int material;
@@ -93,6 +94,12 @@ typedef enum {
     APP_MENU_NONE = 0,
     APP_MENU_STARTUP = 1,
     APP_MENU_MAIN = 2,
+    APP_MENU_OPEN_PICKER = 3,
+    APP_MENU_SAVE_PICKER = 4,
+    APP_MENU_CONFIRM_NEW = 5,
+    APP_MENU_CONFIRM_OPEN = 6,
+    APP_MENU_CONFIRM_QUIT = 7,
+    APP_MENU_CONFIRM_OVERWRITE = 8,
 } AppMenuMode;
 
 typedef struct {
@@ -126,6 +133,9 @@ typedef struct {
     int active_spawn_slot;  // 0..4 => P1,P2,E1,E2,E3
     int pending_spawn_slot; // -1 none, 0..4 waiting for map click
     AppMenuMode menu_mode;
+    bool menu_from_startup;
+    bool quit_after_save;
+    char pending_map_path[260];
 } AppState;
 
 static MapCell g_map[MAP_ROWS][MAP_COLS];
@@ -692,6 +702,67 @@ static bool save_map_file(const char* path, const MapMetadata* meta) {
     return ok;
 }
 
+static bool path_equals(const char* a, const char* b) {
+    if (!a || !b) {
+        return false;
+    }
+    return strcmp(a, b) == 0;
+}
+
+static int collect_map_choices(const AppState* app, bool existing_only, char out_paths[][260],
+                               bool out_exists[]) {
+    static const char* kPlaceholders[] = {"src/game.map", "src/map_a.map", "src/map_b.map",
+                                          "src/test.map", "src/dev.map"};
+    int count = 0;
+
+    if (!app) {
+        return 0;
+    }
+
+    const char* candidates[MAP_CHOICE_LIMIT] = {0};
+    int candidate_count = 0;
+    candidates[candidate_count++] = app->map_path;
+    for (size_t i = 0; i < sizeof(kPlaceholders) / sizeof(kPlaceholders[0]); ++i) {
+        if (candidate_count >= MAP_CHOICE_LIMIT) {
+            break;
+        }
+        candidates[candidate_count++] = kPlaceholders[i];
+    }
+
+    for (int i = 0; i < candidate_count; ++i) {
+        const char* candidate = candidates[i];
+        if (!candidate || candidate[0] == '\0') {
+            continue;
+        }
+
+        bool duplicate = false;
+        for (int j = 0; j < count; ++j) {
+            if (path_equals(out_paths[j], candidate)) {
+                duplicate = true;
+                break;
+            }
+        }
+        if (duplicate) {
+            continue;
+        }
+
+        bool exists = file_exists(candidate);
+        if (existing_only && !exists) {
+            continue;
+        }
+
+        strncpy(out_paths[count], candidate, 259);
+        out_paths[count][259] = '\0';
+        out_exists[count] = exists;
+        count++;
+        if (count >= MAP_CHOICE_LIMIT) {
+            break;
+        }
+    }
+
+    return count;
+}
+
 static void app_new_map_action(AppState* app) {
     if (!app) {
         return;
@@ -706,64 +777,97 @@ static void app_new_map_action(AppState* app) {
     set_status(app, "New map created (unsaved)");
 }
 
-static void app_load_map_action(AppState* app) {
-    if (!app) {
-        return;
+static bool app_open_map_path_action(AppState* app, const char* path) {
+    if (!app || !path || path[0] == '\0') {
+        return false;
     }
 
-    bool map_loaded = load_map_file(app->map_path, &app->meta);
-    if (!map_loaded) {
-        init_default_map();
-        metadata_init_defaults(&app->meta);
+    MapMetadata loaded;
+    if (!load_map_file(path, &loaded)) {
+        return false;
     }
+
+    app->meta = loaded;
     metadata_clamp(&app->meta);
     app->pending_spawn_slot = -1;
     app->active_spawn_slot = -1;
     app->dirty = false;
-    if (map_loaded) {
-        set_status(app, "Map loaded (header+payload)");
-    } else {
-        set_status(app, "Open failed, defaults loaded");
-    }
+    strncpy(app->map_path, path, sizeof(app->map_path) - 1);
+    app->map_path[sizeof(app->map_path) - 1] = '\0';
+    set_status(app, "Map loaded");
+    return true;
 }
 
-static void app_save_map_action(AppState* app) {
-    if (!app) {
-        return;
+static bool app_save_map_to_path_action(AppState* app, const char* path) {
+    if (!app || !path || path[0] == '\0') {
+        return false;
     }
 
     metadata_clamp(&app->meta);
-    bool map_saved = save_map_file(app->map_path, &app->meta);
-    if (map_saved) {
-        app->dirty = false;
-        set_status(app, "Map saved (64-byte header + payload)");
-    } else {
+    if (!save_map_file(path, &app->meta)) {
         set_status(app, "Save failed");
+        return false;
     }
+
+    strncpy(app->map_path, path, sizeof(app->map_path) - 1);
+    app->map_path[sizeof(app->map_path) - 1] = '\0';
+    app->dirty = false;
+    set_status(app, "Map saved");
+    return true;
 }
 
 static bool app_menu_is_open(const AppState* app) {
     return app && app->menu_mode != APP_MENU_NONE;
 }
 
-static int app_menu_option_count(AppMenuMode mode) {
+static int app_menu_option_count(const AppState* app, AppMenuMode mode) {
     if (mode == APP_MENU_STARTUP) {
-        return 2;
+        return 3;
     }
     if (mode == APP_MENU_MAIN) {
-        return 4;
+        return 5;
+    }
+    if (mode == APP_MENU_CONFIRM_NEW || mode == APP_MENU_CONFIRM_OPEN ||
+        mode == APP_MENU_CONFIRM_OVERWRITE) {
+        return 2;
+    }
+    if (mode == APP_MENU_CONFIRM_QUIT) {
+        return 3;
+    }
+    if (mode == APP_MENU_OPEN_PICKER || mode == APP_MENU_SAVE_PICKER) {
+        char paths[MAP_CHOICE_LIMIT][260] = {{0}};
+        bool exists[MAP_CHOICE_LIMIT] = {0};
+        int map_count = collect_map_choices(app, mode == APP_MENU_OPEN_PICKER, paths, exists);
+        return map_count + 1;
     }
     return 0;
 }
 
 static const char* app_menu_option_label(AppMenuMode mode, int index) {
-    static const char* startup_options[] = {"Open", "New"};
-    static const char* main_options[] = {"Load", "Save", "New", "Resume"};
+    static const char* startup_options[] = {"Open", "New", "Quit"};
+    static const char* main_options[] = {"Open", "Save", "New", "Quit", "Resume"};
+    static const char* confirm_new_options[] = {"Cancel", "Create New"};
+    static const char* confirm_open_options[] = {"Cancel", "Open Picker"};
+    static const char* confirm_quit_options[] = {"Cancel", "Discard", "Save"};
+    static const char* overwrite_options[] = {"Cancel", "Overwrite"};
+
     if (mode == APP_MENU_STARTUP) {
-        return (index >= 0 && index < 2) ? startup_options[index] : "";
+        return (index >= 0 && index < 3) ? startup_options[index] : "";
     }
     if (mode == APP_MENU_MAIN) {
-        return (index >= 0 && index < 4) ? main_options[index] : "";
+        return (index >= 0 && index < 5) ? main_options[index] : "";
+    }
+    if (mode == APP_MENU_CONFIRM_NEW) {
+        return (index >= 0 && index < 2) ? confirm_new_options[index] : "";
+    }
+    if (mode == APP_MENU_CONFIRM_OPEN) {
+        return (index >= 0 && index < 2) ? confirm_open_options[index] : "";
+    }
+    if (mode == APP_MENU_CONFIRM_QUIT) {
+        return (index >= 0 && index < 3) ? confirm_quit_options[index] : "";
+    }
+    if (mode == APP_MENU_CONFIRM_OVERWRITE) {
+        return (index >= 0 && index < 2) ? overwrite_options[index] : "";
     }
     return "";
 }
@@ -773,20 +877,96 @@ static SDL_FRect menu_button_rect(void) {
                        (float)MENU_BUTTON_H};
 }
 
-static SDL_FRect menu_dialog_rect(AppMenuMode mode) {
-    const int option_count = app_menu_option_count(mode);
-    const int content_h = option_count > 0 ? option_count * MENU_OPTION_H + (option_count - 1) * MENU_OPTION_GAP : 0;
-    const int dialog_h = 64 + content_h + 20;
+static SDL_FRect menu_dialog_rect(const AppState* app, AppMenuMode mode) {
+    const int option_count = app_menu_option_count(app, mode);
+    const int content_h =
+        option_count > 0 ? option_count * MENU_OPTION_H + (option_count - 1) * MENU_OPTION_GAP : 0;
+    const int dialog_h = 72 + content_h + 20;
     const float x = (float)((WINDOW_WIDTH - MENU_DIALOG_W) / 2);
     const float y = (float)((WINDOW_HEIGHT - dialog_h) / 2);
     return (SDL_FRect){x, y, (float)MENU_DIALOG_W, (float)dialog_h};
 }
 
-static SDL_FRect menu_option_rect(AppMenuMode mode, int index) {
-    SDL_FRect dialog = menu_dialog_rect(mode);
+static SDL_FRect menu_option_rect(const AppState* app, AppMenuMode mode, int index) {
+    SDL_FRect dialog = menu_dialog_rect(app, mode);
     const float x = dialog.x + (dialog.w - (float)MENU_OPTION_W) * 0.5f;
-    const float y = dialog.y + 50.0f + (float)index * (float)(MENU_OPTION_H + MENU_OPTION_GAP);
+    const float y = dialog.y + 56.0f + (float)index * (float)(MENU_OPTION_H + MENU_OPTION_GAP);
     return (SDL_FRect){x, y, (float)MENU_OPTION_W, (float)MENU_OPTION_H};
+}
+
+static void app_menu_cancel(AppState* app) {
+    if (!app) {
+        return;
+    }
+
+    switch (app->menu_mode) {
+        case APP_MENU_MAIN:
+            app->menu_mode = APP_MENU_NONE;
+            break;
+        case APP_MENU_OPEN_PICKER:
+            app->menu_mode = app->menu_from_startup ? APP_MENU_STARTUP : APP_MENU_MAIN;
+            break;
+        case APP_MENU_SAVE_PICKER:
+            app->menu_mode = app->quit_after_save ? APP_MENU_CONFIRM_QUIT : APP_MENU_MAIN;
+            break;
+        case APP_MENU_CONFIRM_NEW:
+        case APP_MENU_CONFIRM_OPEN:
+            app->menu_mode = APP_MENU_MAIN;
+            break;
+        case APP_MENU_CONFIRM_QUIT:
+            app->menu_mode = APP_MENU_NONE;
+            break;
+        case APP_MENU_CONFIRM_OVERWRITE:
+            app->menu_mode = APP_MENU_SAVE_PICKER;
+            break;
+        default:
+            break;
+    }
+
+    if (app->menu_mode == APP_MENU_NONE || app->menu_mode == APP_MENU_MAIN ||
+        app->menu_mode == APP_MENU_STARTUP) {
+        app->pending_map_path[0] = '\0';
+        app->quit_after_save = false;
+    }
+}
+
+static void app_begin_open_flow(AppState* app, bool from_startup) {
+    if (!app) {
+        return;
+    }
+    if (!from_startup) {
+        app->menu_mode = APP_MENU_CONFIRM_OPEN;
+        return;
+    }
+    app->menu_from_startup = from_startup;
+    app->menu_mode = APP_MENU_OPEN_PICKER;
+}
+
+static void app_begin_new_flow(AppState* app) {
+    if (!app) {
+        return;
+    }
+    app->menu_mode = APP_MENU_CONFIRM_NEW;
+}
+
+static void app_begin_save_flow(AppState* app, bool quit_after_save) {
+    if (!app) {
+        return;
+    }
+    app->quit_after_save = quit_after_save;
+    app->menu_mode = APP_MENU_SAVE_PICKER;
+}
+
+static void app_begin_quit_flow(AppState* app) {
+    if (!app) {
+        return;
+    }
+    if (app->dirty) {
+        app->menu_mode = APP_MENU_CONFIRM_QUIT;
+        return;
+    }
+    app->running = false;
+    app->menu_mode = APP_MENU_NONE;
 }
 
 static bool handle_menu_click(AppState* app, int x, int y) {
@@ -797,6 +977,9 @@ static bool handle_menu_click(AppState* app, int x, int y) {
     SDL_FRect menu_button = menu_button_rect();
     if (!app_menu_is_open(app) && point_in_frect(x, y, &menu_button)) {
         app->menu_mode = APP_MENU_MAIN;
+        app->menu_from_startup = false;
+        app->quit_after_save = false;
+        app->pending_map_path[0] = '\0';
         return true;
     }
 
@@ -804,40 +987,149 @@ static bool handle_menu_click(AppState* app, int x, int y) {
         return false;
     }
 
-    SDL_FRect dialog = menu_dialog_rect(app->menu_mode);
+    SDL_FRect dialog = menu_dialog_rect(app, app->menu_mode);
     if (!point_in_frect(x, y, &dialog)) {
-        if (app->menu_mode == APP_MENU_MAIN) {
-            app->menu_mode = APP_MENU_NONE;
+        if (app->menu_mode != APP_MENU_STARTUP) {
+            app_menu_cancel(app);
         }
         return true;
     }
 
-    const int option_count = app_menu_option_count(app->menu_mode);
+    const int option_count = app_menu_option_count(app, app->menu_mode);
     for (int i = 0; i < option_count; ++i) {
-        SDL_FRect option = menu_option_rect(app->menu_mode, i);
+        SDL_FRect option = menu_option_rect(app, app->menu_mode, i);
         if (!point_in_frect(x, y, &option)) {
             continue;
         }
 
         if (app->menu_mode == APP_MENU_STARTUP) {
             if (i == 0) {
-                app_load_map_action(app);
+                app_begin_open_flow(app, true);
             } else if (i == 1) {
                 app_new_map_action(app);
+                app->menu_mode = APP_MENU_NONE;
+                app->menu_from_startup = false;
+                app->quit_after_save = false;
+                app->pending_map_path[0] = '\0';
+            } else if (i == 2) {
+                app_begin_quit_flow(app);
             }
-            app->menu_mode = APP_MENU_NONE;
             return true;
         }
 
         if (app->menu_mode == APP_MENU_MAIN) {
             if (i == 0) {
-                app_load_map_action(app);
+                app_begin_open_flow(app, false);
             } else if (i == 1) {
-                app_save_map_action(app);
+                app_begin_save_flow(app, false);
             } else if (i == 2) {
-                app_new_map_action(app);
+                app_begin_new_flow(app);
+            } else if (i == 3) {
+                app_begin_quit_flow(app);
+            } else if (i == 4) {
+                app->menu_mode = APP_MENU_NONE;
+                app->menu_from_startup = false;
+                app->quit_after_save = false;
+                app->pending_map_path[0] = '\0';
             }
-            app->menu_mode = APP_MENU_NONE;
+            return true;
+        }
+
+        if (app->menu_mode == APP_MENU_CONFIRM_NEW) {
+            if (i == 0) {
+                app->menu_mode = APP_MENU_MAIN;
+            } else if (i == 1) {
+                app_new_map_action(app);
+                app->menu_mode = APP_MENU_NONE;
+                app->menu_from_startup = false;
+                app->quit_after_save = false;
+                app->pending_map_path[0] = '\0';
+            }
+            return true;
+        }
+
+        if (app->menu_mode == APP_MENU_CONFIRM_OPEN) {
+            if (i == 0) {
+                app->menu_mode = APP_MENU_MAIN;
+            } else if (i == 1) {
+                app->menu_from_startup = false;
+                app->menu_mode = APP_MENU_OPEN_PICKER;
+            }
+            return true;
+        }
+
+        if (app->menu_mode == APP_MENU_CONFIRM_QUIT) {
+            if (i == 0) {
+                app->menu_mode = APP_MENU_NONE;
+            } else if (i == 1) {
+                app->running = false;
+                app->menu_mode = APP_MENU_NONE;
+            } else if (i == 2) {
+                app_begin_save_flow(app, true);
+            }
+            return true;
+        }
+
+        if (app->menu_mode == APP_MENU_CONFIRM_OVERWRITE) {
+            if (i == 0) {
+                app->menu_mode = APP_MENU_SAVE_PICKER;
+            } else if (i == 1) {
+                bool saved = app_save_map_to_path_action(app, app->pending_map_path);
+                if (saved && app->quit_after_save) {
+                    app->running = false;
+                }
+                if (saved) {
+                    app->menu_mode = APP_MENU_NONE;
+                    app->quit_after_save = false;
+                    app->pending_map_path[0] = '\0';
+                } else {
+                    app->menu_mode = APP_MENU_SAVE_PICKER;
+                }
+            }
+            return true;
+        }
+
+        if (app->menu_mode == APP_MENU_OPEN_PICKER || app->menu_mode == APP_MENU_SAVE_PICKER) {
+            char paths[MAP_CHOICE_LIMIT][260] = {{0}};
+            bool exists[MAP_CHOICE_LIMIT] = {0};
+            int map_count = collect_map_choices(app, app->menu_mode == APP_MENU_OPEN_PICKER, paths, exists);
+            if (i >= map_count) {
+                app_menu_cancel(app);
+                return true;
+            }
+
+            if (app->menu_mode == APP_MENU_OPEN_PICKER) {
+                if (app_open_map_path_action(app, paths[i])) {
+                    app->menu_mode = APP_MENU_NONE;
+                    app->menu_from_startup = false;
+                    app->quit_after_save = false;
+                    app->pending_map_path[0] = '\0';
+                } else {
+                    set_status(app, "Open failed");
+                }
+                return true;
+            }
+
+            const bool is_source = path_equals(paths[i], app->map_path);
+            if (exists[i] && !is_source) {
+                strncpy(app->pending_map_path, paths[i], sizeof(app->pending_map_path) - 1);
+                app->pending_map_path[sizeof(app->pending_map_path) - 1] = '\0';
+                app->menu_mode = APP_MENU_CONFIRM_OVERWRITE;
+                return true;
+            }
+
+            bool saved = app_save_map_to_path_action(app, paths[i]);
+            if (saved && app->quit_after_save) {
+                app->running = false;
+            }
+            if (saved) {
+                app->menu_mode = APP_MENU_NONE;
+                app->quit_after_save = false;
+                app->menu_from_startup = false;
+                app->pending_map_path[0] = '\0';
+            } else {
+                app->menu_mode = APP_MENU_SAVE_PICKER;
+            }
             return true;
         }
     }
@@ -1501,28 +1793,79 @@ static void render_menu_overlay(AppState* app) {
     SDL_FRect fade = {0.0f, 0.0f, (float)WINDOW_WIDTH, (float)WINDOW_HEIGHT};
     SDL_RenderFillRect(app->renderer, &fade);
 
-    SDL_FRect dialog = menu_dialog_rect(app->menu_mode);
+    SDL_FRect dialog = menu_dialog_rect(app, app->menu_mode);
     SDL_SetRenderDrawColor(app->renderer, 34, 34, 34, 238);
     SDL_RenderFillRect(app->renderer, &dialog);
     SDL_SetRenderDrawColor(app->renderer, 128, 128, 128, 255);
     SDL_RenderRect(app->renderer, &dialog);
 
-    if (app->menu_mode == APP_MENU_STARTUP) {
-        render_text_line(app, "Map Maker", (int)dialog.x + 12, (int)dialog.y + 12,
-                         (SDL_Color){240, 240, 240, 255});
-        render_text_line(app, "Select Open or New to begin", (int)dialog.x + 12, (int)dialog.y + 26,
-                         (SDL_Color){190, 190, 190, 255});
-    } else {
-        render_text_line(app, "Menu", (int)dialog.x + 12, (int)dialog.y + 12,
-                         (SDL_Color){240, 240, 240, 255});
-        render_text_line(app, "Load / Save / New", (int)dialog.x + 12, (int)dialog.y + 26,
-                         (SDL_Color){190, 190, 190, 255});
+    const char* title = "Menu";
+    const char* subtitle = "";
+    switch (app->menu_mode) {
+        case APP_MENU_STARTUP:
+            title = "Map Maker";
+            subtitle = "Open or create a map";
+            break;
+        case APP_MENU_MAIN:
+            title = "Menu";
+            subtitle = "Open / Save / New / Quit";
+            break;
+        case APP_MENU_OPEN_PICKER:
+            title = "Open Map";
+            subtitle = "Select existing map file (placeholder list)";
+            break;
+        case APP_MENU_SAVE_PICKER:
+            title = "Save Map";
+            subtitle = "Select target path (placeholder list)";
+            break;
+        case APP_MENU_CONFIRM_NEW:
+            title = "Confirm New";
+            subtitle = "Replace current map with a new one?";
+            break;
+        case APP_MENU_CONFIRM_OPEN:
+            title = "Confirm Open";
+            subtitle = "Open another map from the list?";
+            break;
+        case APP_MENU_CONFIRM_QUIT:
+            title = "Confirm Quit";
+            subtitle = "Save before quitting?";
+            break;
+        case APP_MENU_CONFIRM_OVERWRITE:
+            title = "Confirm Overwrite";
+            subtitle = "Target exists and is not current source";
+            break;
+        default:
+            break;
     }
+    render_text_line(app, title, (int)dialog.x + 12, (int)dialog.y + 12,
+                     (SDL_Color){240, 240, 240, 255});
+    render_text_line(app, subtitle, (int)dialog.x + 12, (int)dialog.y + 26,
+                     (SDL_Color){190, 190, 190, 255});
 
-    const int option_count = app_menu_option_count(app->menu_mode);
+    const int option_count = app_menu_option_count(app, app->menu_mode);
     for (int i = 0; i < option_count; ++i) {
-        SDL_FRect option = menu_option_rect(app->menu_mode, i);
-        render_button(app, &option, app_menu_option_label(app->menu_mode, i), false);
+        SDL_FRect option = menu_option_rect(app, app->menu_mode, i);
+
+        if (app->menu_mode == APP_MENU_OPEN_PICKER || app->menu_mode == APP_MENU_SAVE_PICKER) {
+            char paths[MAP_CHOICE_LIMIT][260] = {{0}};
+            bool exists[MAP_CHOICE_LIMIT] = {0};
+            int map_count =
+                collect_map_choices(app, app->menu_mode == APP_MENU_OPEN_PICKER, paths, exists);
+
+            char label[220];
+            if (i >= map_count) {
+                snprintf(label, sizeof(label), "Cancel");
+            } else if (app->menu_mode == APP_MENU_OPEN_PICKER) {
+                snprintf(label, sizeof(label), "Open %.170s", paths[i]);
+            } else {
+                const bool is_source = path_equals(paths[i], app->map_path);
+                snprintf(label, sizeof(label), "Save %.150s%s%s", paths[i], is_source ? " [source]" : "",
+                         exists[i] ? " [exists]" : "");
+            }
+            render_button(app, &option, label, false);
+        } else {
+            render_button(app, &option, app_menu_option_label(app->menu_mode, i), false);
+        }
     }
 
     SDL_SetRenderDrawBlendMode(app->renderer, SDL_BLENDMODE_NONE);
@@ -1674,6 +2017,9 @@ static bool app_init(AppState* app) {
     app->active_spawn_slot = -1;
     app->pending_spawn_slot = -1;
     app->menu_mode = APP_MENU_STARTUP;
+    app->menu_from_startup = false;
+    app->quit_after_save = false;
+    app->pending_map_path[0] = '\0';
     metadata_init_defaults(&app->meta);
     init_default_map();
     set_status(app, "Startup menu: choose Open or New");
@@ -1762,7 +2108,7 @@ static void app_handle_events(AppState* app) {
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
             case SDL_EVENT_QUIT:
-                app->running = false;
+                app_begin_quit_flow(app);
                 break;
             case SDL_EVENT_MOUSE_MOTION: {
                 float logical_x = event.motion.x;
@@ -1808,8 +2154,8 @@ static void app_handle_events(AppState* app) {
                 if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
                     if (app->menu_mode == APP_MENU_NONE) {
                         app->menu_mode = APP_MENU_MAIN;
-                    } else if (app->menu_mode == APP_MENU_MAIN) {
-                        app->menu_mode = APP_MENU_NONE;
+                    } else {
+                        app_menu_cancel(app);
                     }
                     break;
                 }
@@ -1821,13 +2167,13 @@ static void app_handle_events(AppState* app) {
                 const bool shift_held = (event.key.mod & SDL_KMOD_SHIFT) != 0;
                 switch (event.key.scancode) {
                     case SDL_SCANCODE_S:
-                        app_save_map_action(app);
+                        app_begin_save_flow(app, false);
                         break;
                     case SDL_SCANCODE_L:
-                        app_load_map_action(app);
+                        app_begin_open_flow(app, false);
                         break;
                     case SDL_SCANCODE_C:
-                        app_new_map_action(app);
+                        app_begin_new_flow(app);
                         break;
                     case SDL_SCANCODE_1:
                         if (shift_held) {
