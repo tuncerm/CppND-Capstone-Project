@@ -5,8 +5,8 @@
     "version": "1.0"
   },
   "display": {
-    "window_width": 568,
-    "window_height": 340,
+    "window_width": 560,
+    "window_height": 300,
     "window_title": "Palette Maker v1.0.0 - SDL3 Edition"
   },
   "ui": {
@@ -19,7 +19,7 @@
     "ui_panel_x": 220,
     "ui_panel_y": 20,
     "ui_panel_width": 320,
-    "ui_panel_height": 300,
+    "ui_panel_height": 250,
     "ui_panel_row_height": 30,
     "button_width": 30,
     "button_height": 20,

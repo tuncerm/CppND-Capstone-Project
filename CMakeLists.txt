@@ -74,11 +74,31 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 # Add shared components library
 add_subdirectory(shared)
 
+# Common executable output directory for all apps/tools.
+set(COMMON_RUNTIME_OUTPUT_DIR "${CMAKE_BINARY_DIR}/bin")
+
+function(configure_common_runtime_output target_name)
+    if(TARGET ${target_name})
+        set_target_properties(${target_name} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${COMMON_RUNTIME_OUTPUT_DIR}"
+            RUNTIME_OUTPUT_DIRECTORY_DEBUG "${COMMON_RUNTIME_OUTPUT_DIR}"
+            RUNTIME_OUTPUT_DIRECTORY_RELEASE "${COMMON_RUNTIME_OUTPUT_DIR}"
+            RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${COMMON_RUNTIME_OUTPUT_DIR}"
+            RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL "${COMMON_RUNTIME_OUTPUT_DIR}"
+        )
+    endif()
+endfunction()
+
 # Add palette-maker and tile-maker subdirectories
 add_subdirectory(palette-maker)
 add_subdirectory(tile-maker)
 add_subdirectory(map-maker)
 add_subdirectory(asset-composer)
+
+configure_common_runtime_output(PaletteMaker)
+configure_common_runtime_output(TileMaker)
+configure_common_runtime_output(MapMaker)
+configure_common_runtime_output(AssetComposer)
 
 # Find SDL3 with better cross-platform support
 find_package(SDL3 REQUIRED)
@@ -102,6 +122,7 @@ set(SOURCES
 
 # Create executable
 add_executable(PlayGame ${SOURCES})
+configure_common_runtime_output(PlayGame)
 
 target_include_directories(PlayGame PUBLIC
     src

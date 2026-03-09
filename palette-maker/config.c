@@ -44,8 +44,8 @@ bool load_app_config(AppConfig* config, const char* config_path) {
 
 static void set_default_config(AppConfig* config) {
     // [display]
-    config->window_width = 800;
-    config->window_height = 600;
+    config->window_width = 560;
+    config->window_height = 300;
     strcpy(config->window_title, "Palette Maker v1.0.0 - SDL3 Edition");
 
     // [ui]
@@ -58,7 +58,7 @@ static void set_default_config(AppConfig* config) {
     config->ui_panel_x = 220;
     config->ui_panel_y = 20;
     config->ui_panel_width = 320;
-    config->ui_panel_height = 300;
+    config->ui_panel_height = 250;
     config->ui_panel_row_height = 30;
     config->button_width = 30;
     config->button_height = 20;
@@ -86,9 +86,9 @@ static void set_default_config(AppConfig* config) {
 
 static void register_config_entries(ConfigManager* cm) {
     // Section "display"
-    config_register_entry(cm, "display", "window_width", CONFIG_TYPE_INT, config_make_int(800),
+    config_register_entry(cm, "display", "window_width", CONFIG_TYPE_INT, config_make_int(560),
                           false);
-    config_register_entry(cm, "display", "window_height", CONFIG_TYPE_INT, config_make_int(600),
+    config_register_entry(cm, "display", "window_height", CONFIG_TYPE_INT, config_make_int(300),
                           false);
     config_register_entry(cm, "display", "window_title", CONFIG_TYPE_STRING,
                           config_make_string("Palette Maker v1.0.0 - SDL3 Edition"), false);
@@ -103,7 +103,7 @@ static void register_config_entries(ConfigManager* cm) {
     config_register_entry(cm, "ui", "ui_panel_x", CONFIG_TYPE_INT, config_make_int(220), false);
     config_register_entry(cm, "ui", "ui_panel_y", CONFIG_TYPE_INT, config_make_int(20), false);
     config_register_entry(cm, "ui", "ui_panel_width", CONFIG_TYPE_INT, config_make_int(320), false);
-    config_register_entry(cm, "ui", "ui_panel_height", CONFIG_TYPE_INT, config_make_int(300),
+    config_register_entry(cm, "ui", "ui_panel_height", CONFIG_TYPE_INT, config_make_int(250),
                           false);
     config_register_entry(cm, "ui", "ui_panel_row_height", CONFIG_TYPE_INT, config_make_int(30),
                           false);
@@ -147,8 +147,8 @@ static void register_config_entries(ConfigManager* cm) {
 
 static void populate_config_from_manager(AppConfig* config, const ConfigManager* cm) {
     // [display]
-    config->window_width = config_get_int(cm, "display", "window_width", 800);
-    config->window_height = config_get_int(cm, "display", "window_height", 600);
+    config->window_width = config_get_int(cm, "display", "window_width", 560);
+    config->window_height = config_get_int(cm, "display", "window_height", 300);
     strncpy(config->window_title,
             config_get_string(cm, "display", "window_title", "Palette Maker v1.0.0 - SDL3 Edition"),
             CONFIG_MAX_STRING_LENGTH - 1);
@@ -163,7 +163,7 @@ static void populate_config_from_manager(AppConfig* config, const ConfigManager*
     config->ui_panel_x = config_get_int(cm, "ui", "ui_panel_x", 220);
     config->ui_panel_y = config_get_int(cm, "ui", "ui_panel_y", 20);
     config->ui_panel_width = config_get_int(cm, "ui", "ui_panel_width", 320);
-    config->ui_panel_height = config_get_int(cm, "ui", "ui_panel_height", 300);
+    config->ui_panel_height = config_get_int(cm, "ui", "ui_panel_height", 250);
     config->ui_panel_row_height = config_get_int(cm, "ui", "ui_panel_row_height", 30);
     config->button_width = config_get_int(cm, "ui", "button_width", 30);
     config->button_height = config_get_int(cm, "ui", "button_height", 20);
