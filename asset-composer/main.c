@@ -169,7 +169,7 @@ static int menu_option_count(MenuMode mode) {
         return 3;
     }
     if (mode == MENU_MAIN) {
-        return 7;
+        return 11;
     }
     if (mode == MENU_CONFIRM_NEW || mode == MENU_CONFIRM_OPEN) {
         return 2;
@@ -182,7 +182,9 @@ static int menu_option_count(MenuMode mode) {
 
 static const char* menu_option_label(MenuMode mode, int index) {
     static const char* startup[] = {"Open", "New", "Quit"};
-    static const char* main[] = {"Open", "Save", "New", "Add Cell", "Delete", "Quit", "Resume"};
+    static const char* main[] = {"Open",  "Save",   "New",    "Add Cell", "Clone",
+                                 "Rename", "Fill",   "Clear",  "Delete",   "Quit",
+                                 "Resume"};
     static const char* confirm_new[] = {"Cancel", "Create New"};
     static const char* confirm_open[] = {"Cancel", "Open"};
     static const char* confirm_quit[] = {"Cancel", "Discard", "Save+Quit"};
@@ -191,7 +193,7 @@ static const char* menu_option_label(MenuMode mode, int index) {
         return (index >= 0 && index < 3) ? startup[index] : "";
     }
     if (mode == MENU_MAIN) {
-        return (index >= 0 && index < 7) ? main[index] : "";
+        return (index >= 0 && index < 11) ? main[index] : "";
     }
     if (mode == MENU_CONFIRM_NEW) {
         return (index >= 0 && index < 2) ? confirm_new[index] : "";
@@ -283,6 +285,13 @@ static void render_tile(SDL_Renderer* renderer, int tile_id, int x, int y, int s
             SDL_RenderFillRect(renderer, &rect);
         }
     }
+}
+
+static void record_set_default_name(AssetRecord* record) {
+    if (!record) {
+        return;
+    }
+    snprintf(record->name, sizeof(record->name), "CELL_%04u", (unsigned)record->asset_id);
 }
 
 static bool hit_test_tile_palette(int x, int y, int* out_tile_id) {
@@ -437,6 +446,68 @@ static void action_delete_selected(AppState* app) {
     set_status(app, "Asset removed");
 }
 
+static void action_clone_selected(AppState* app) {
+    if (!app) {
+        return;
+    }
+
+    const AssetRecord* source = get_selected_record(app);
+    if (!source) {
+        set_status(app, "Clone failed: no selected asset");
+        return;
+    }
+    if (app->db.count >= ASSET_DB_MAX_ASSETS) {
+        set_status(app, "Clone failed: database full");
+        return;
+    }
+
+    uint16_t next_id = find_next_asset_id(&app->db);
+    AssetRecord* dest = &app->db.records[app->db.count];
+    *dest = *source;
+    dest->asset_id = next_id;
+    record_set_default_name(dest);
+
+    app->db.count++;
+    app->selected_index = (int)app->db.count - 1;
+    app->dirty = true;
+    select_clamp(app);
+    set_status(app, "Asset cloned");
+}
+
+static void action_rename_selected(AppState* app) {
+    if (!app) {
+        return;
+    }
+    AssetRecord* record = get_selected_record_mut(app);
+    if (!record) {
+        set_status(app, "Rename failed: no selected asset");
+        return;
+    }
+
+    record_set_default_name(record);
+    app->dirty = true;
+    set_status(app, "Asset renamed to default");
+}
+
+static void action_fill_selected(AppState* app, uint8_t tile_id) {
+    if (!app) {
+        return;
+    }
+    AssetRecord* record = get_selected_record_mut(app);
+    if (!record || record->type != ASSET_TYPE_CELL32) {
+        set_status(app, "Fill failed: select CELL32 asset");
+        return;
+    }
+
+    for (int i = 0; i < ASSET_DB_CELL_TILE_COUNT; ++i) {
+        record->tile_refs[i] = tile_id;
+    }
+    app->dirty = true;
+    set_status(app, "Filled CELL32 with selected tile");
+}
+
+static void action_clear_selected(AppState* app) { action_fill_selected(app, 0); }
+
 static void begin_new_flow(AppState* app) {
     if (!app) {
         return;
@@ -542,11 +613,23 @@ static bool handle_menu_click(AppState* app, int x, int y) {
                     action_add_cell(app);
                     app->menu_mode = MENU_NONE;
                 } else if (i == 4) {
-                    action_delete_selected(app);
+                    action_clone_selected(app);
                     app->menu_mode = MENU_NONE;
                 } else if (i == 5) {
-                    begin_quit_flow(app);
+                    action_rename_selected(app);
+                    app->menu_mode = MENU_NONE;
                 } else if (i == 6) {
+                    action_fill_selected(app, (uint8_t)app->selected_tile);
+                    app->menu_mode = MENU_NONE;
+                } else if (i == 7) {
+                    action_clear_selected(app);
+                    app->menu_mode = MENU_NONE;
+                } else if (i == 8) {
+                    action_delete_selected(app);
+                    app->menu_mode = MENU_NONE;
+                } else if (i == 9) {
+                    begin_quit_flow(app);
+                } else if (i == 10) {
                     app->menu_mode = MENU_NONE;
                 }
                 return true;
@@ -743,7 +826,7 @@ static void render_menu_overlay(AppState* app) {
         subtitle = "Open existing assets.dat or create a new one";
     } else if (app->menu_mode == MENU_MAIN) {
         title = "Asset Menu";
-        subtitle = "Open / Save / New / Add / Delete / Quit";
+        subtitle = "Open / Save / New / Add / Clone / Rename / Fill / Clear / Delete / Quit";
     } else if (app->menu_mode == MENU_CONFIRM_NEW) {
         title = "Confirm New";
         subtitle = "Current DB has unsaved changes";
@@ -778,7 +861,8 @@ static void render_ui(AppState* app) {
 
     render_text_line(app, "AssetComposer v0.1", MENU_BUTTON_X + 118, MENU_BUTTON_Y + 8,
                      (SDL_Color){220, 220, 220, 255});
-    render_text_line(app, "O open, S save, N new, A add, Del remove, LMB paint, RMB pick, Esc menu",
+    render_text_line(app,
+                     "O open, S save, N new, A add, C clone, R rename, F fill, X clear, Del remove",
                      MENU_BUTTON_X + 260, MENU_BUTTON_Y + 8, (SDL_Color){160, 160, 160, 255});
 
     char path_line[300];
@@ -997,6 +1081,18 @@ static void app_handle_events(AppState* app) {
                         break;
                     case SDL_SCANCODE_A:
                         action_add_cell(app);
+                        break;
+                    case SDL_SCANCODE_C:
+                        action_clone_selected(app);
+                        break;
+                    case SDL_SCANCODE_R:
+                        action_rename_selected(app);
+                        break;
+                    case SDL_SCANCODE_F:
+                        action_fill_selected(app, (uint8_t)app->selected_tile);
+                        break;
+                    case SDL_SCANCODE_X:
+                        action_clear_selected(app);
                         break;
                     case SDL_SCANCODE_DELETE:
                         action_delete_selected(app);
