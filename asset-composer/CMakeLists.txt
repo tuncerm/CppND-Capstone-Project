@@ -48,6 +48,9 @@ find_package(SDL3 REQUIRED)
 set(SOURCES
     main.c
     asset_db.c
+    ../tile-maker/palette_io.c
+    ../tile-maker/tiles_io.c
+    ../tile-maker/tile_specs_io.c
 )
 
 add_executable(AssetComposer ${SOURCES})
@@ -55,6 +58,7 @@ add_executable(AssetComposer ${SOURCES})
 target_include_directories(AssetComposer PUBLIC
     ${SDL3_INCLUDE_DIRS}
     "${CMAKE_CURRENT_SOURCE_DIR}/../shared"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../tile-maker"
 )
 
 set_target_properties(AssetComposer PROPERTIES

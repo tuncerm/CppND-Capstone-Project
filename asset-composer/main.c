@@ -6,6 +6,8 @@
 
 #include "../shared/text_renderer/text_renderer.h"
 #include "../shared/ui_framework/ui_viewport.h"
+#include "../tile-maker/palette_io.h"
+#include "../tile-maker/tiles_io.h"
 #include "asset_db.h"
 
 #define WINDOW_WIDTH 1200
@@ -21,6 +23,15 @@
 #define DETAILS_Y 56
 #define DETAILS_W 732
 #define DETAILS_H 660
+#define CELL_EDITOR_X (DETAILS_X + 16)
+#define CELL_EDITOR_Y (DETAILS_Y + 146)
+#define CELL_EDITOR_TILE_SIZE 40
+#define TILE_PALETTE_X (DETAILS_X + 220)
+#define TILE_PALETTE_Y (DETAILS_Y + 56)
+#define TILE_PALETTE_COLS 16
+#define TILE_PALETTE_ROWS 16
+#define TILE_PALETTE_TILE_SIZE 16
+#define TILE_PALETTE_TILE_GAP 2
 
 #define STATUS_BAR_HEIGHT 24
 #define MENU_BUTTON_X 16
@@ -56,8 +67,11 @@ typedef struct {
     AssetDb db;
     int selected_index;
     int list_scroll;
+    int selected_tile;
 
     char assets_path[260];
+    char palette_path[260];
+    char tiles_path[260];
     char status[200];
 } AppState;
 
@@ -234,6 +248,94 @@ static void select_clamp(AppState* app) {
     if (app->list_scroll < 0) {
         app->list_scroll = 0;
     }
+}
+
+static AssetRecord* get_selected_record_mut(AppState* app) {
+    if (!app || app->selected_index < 0 || (size_t)app->selected_index >= app->db.count) {
+        return NULL;
+    }
+    return &app->db.records[app->selected_index];
+}
+
+static const AssetRecord* get_selected_record(const AppState* app) {
+    if (!app || app->selected_index < 0 || (size_t)app->selected_index >= app->db.count) {
+        return NULL;
+    }
+    return &app->db.records[app->selected_index];
+}
+
+static void render_tile(SDL_Renderer* renderer, int tile_id, int x, int y, int size) {
+    if (!renderer || tile_id < 0 || tile_id >= TILE_COUNT || size <= 0) {
+        return;
+    }
+
+    int scale = size / TILE_WIDTH;
+    if (scale <= 0) {
+        scale = 1;
+    }
+
+    for (int py = 0; py < TILE_HEIGHT; ++py) {
+        for (int px = 0; px < TILE_WIDTH; ++px) {
+            uint8_t palette_index = get_px(tile_id, px, py);
+            SDL_Color color = palette_get_sdl_color((int)palette_index);
+            SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+            SDL_FRect rect = {(float)(x + px * scale), (float)(y + py * scale), (float)scale, (float)scale};
+            SDL_RenderFillRect(renderer, &rect);
+        }
+    }
+}
+
+static bool hit_test_tile_palette(int x, int y, int* out_tile_id) {
+    const int panel_w = TILE_PALETTE_COLS * TILE_PALETTE_TILE_SIZE +
+                        (TILE_PALETTE_COLS - 1) * TILE_PALETTE_TILE_GAP;
+    const int panel_h = TILE_PALETTE_ROWS * TILE_PALETTE_TILE_SIZE +
+                        (TILE_PALETTE_ROWS - 1) * TILE_PALETTE_TILE_GAP;
+    SDL_FRect panel = {(float)TILE_PALETTE_X, (float)TILE_PALETTE_Y, (float)panel_w, (float)panel_h};
+    if (!point_in_frect(x, y, &panel)) {
+        return false;
+    }
+
+    const int local_x = x - TILE_PALETTE_X;
+    const int local_y = y - TILE_PALETTE_Y;
+    const int step_x = TILE_PALETTE_TILE_SIZE + TILE_PALETTE_TILE_GAP;
+    const int step_y = TILE_PALETTE_TILE_SIZE + TILE_PALETTE_TILE_GAP;
+    const int col = local_x / step_x;
+    const int row = local_y / step_y;
+    if (col < 0 || col >= TILE_PALETTE_COLS || row < 0 || row >= TILE_PALETTE_ROWS) {
+        return false;
+    }
+    if ((local_x % step_x) >= TILE_PALETTE_TILE_SIZE || (local_y % step_y) >= TILE_PALETTE_TILE_SIZE) {
+        return false;
+    }
+
+    const int tile_id = row * TILE_PALETTE_COLS + col;
+    if (tile_id < 0 || tile_id >= TILE_COUNT) {
+        return false;
+    }
+    if (out_tile_id) {
+        *out_tile_id = tile_id;
+    }
+    return true;
+}
+
+static bool hit_test_cell_slot(int x, int y, int* out_slot) {
+    SDL_FRect canvas = {(float)CELL_EDITOR_X, (float)CELL_EDITOR_Y, (float)(4 * CELL_EDITOR_TILE_SIZE),
+                        (float)(4 * CELL_EDITOR_TILE_SIZE)};
+    if (!point_in_frect(x, y, &canvas)) {
+        return false;
+    }
+
+    int local_x = x - CELL_EDITOR_X;
+    int local_y = y - CELL_EDITOR_Y;
+    int col = local_x / CELL_EDITOR_TILE_SIZE;
+    int row = local_y / CELL_EDITOR_TILE_SIZE;
+    if (col < 0 || col >= 4 || row < 0 || row >= 4) {
+        return false;
+    }
+    if (out_slot) {
+        *out_slot = row * 4 + col;
+    }
+    return true;
 }
 
 static uint16_t find_next_asset_id(const AssetDb* db) {
@@ -540,35 +642,81 @@ static void render_details_panel(AppState* app) {
     SDL_RenderRect(app->renderer, &panel);
 
     render_text_line(app, "Asset Details", DETAILS_X + 8, DETAILS_Y + 6, (SDL_Color){225, 225, 225, 255});
-    render_text_line(app, "Schema: ASDB v1 (CELL32 only in skeleton)", DETAILS_X + 8, DETAILS_Y + 22,
-                     (SDL_Color){180, 180, 180, 255});
+    render_text_line(app, "CELL32 editor: LMB paint slot, RMB pick slot, click tile palette to choose brush",
+                     DETAILS_X + 8, DETAILS_Y + 22, (SDL_Color){180, 180, 180, 255});
 
-    if (app->selected_index < 0 || (size_t)app->selected_index >= app->db.count) {
+    const AssetRecord* record = get_selected_record(app);
+    if (!record) {
         render_text_line(app, "No asset selected", DETAILS_X + 8, DETAILS_Y + 58,
                          (SDL_Color){200, 200, 200, 255});
         return;
     }
-
-    const AssetRecord* record = &app->db.records[app->selected_index];
     char line[128];
     snprintf(line, sizeof(line), "ID: %u", (unsigned)record->asset_id);
-    render_text_line(app, line, DETAILS_X + 8, DETAILS_Y + 58, (SDL_Color){220, 220, 220, 255});
+    render_text_line(app, line, DETAILS_X + 8, DETAILS_Y + 56, (SDL_Color){220, 220, 220, 255});
     snprintf(line, sizeof(line), "Name: %.16s", record->name);
-    render_text_line(app, line, DETAILS_X + 8, DETAILS_Y + 74, (SDL_Color){220, 220, 220, 255});
+    render_text_line(app, line, DETAILS_X + 8, DETAILS_Y + 72, (SDL_Color){220, 220, 220, 255});
     snprintf(line, sizeof(line), "Type: %u (CELL32=%u)", (unsigned)record->type, (unsigned)ASSET_TYPE_CELL32);
-    render_text_line(app, line, DETAILS_X + 8, DETAILS_Y + 90, (SDL_Color){220, 220, 220, 255});
+    render_text_line(app, line, DETAILS_X + 8, DETAILS_Y + 88, (SDL_Color){220, 220, 220, 255});
     snprintf(line, sizeof(line), "Flags: %u", (unsigned)record->flags);
-    render_text_line(app, line, DETAILS_X + 8, DETAILS_Y + 106, (SDL_Color){220, 220, 220, 255});
+    render_text_line(app, line, DETAILS_X + 8, DETAILS_Y + 104, (SDL_Color){220, 220, 220, 255});
+    snprintf(line, sizeof(line), "Selected tile: %03d", app->selected_tile);
+    render_text_line(app, line, DETAILS_X + 8, DETAILS_Y + 120, (SDL_Color){220, 220, 220, 255});
 
-    render_text_line(app, "Tile Refs (4x4):", DETAILS_X + 8, DETAILS_Y + 132,
-                     (SDL_Color){205, 205, 205, 255});
-    for (int row = 0; row < 4; ++row) {
-        char row_text[96];
-        snprintf(row_text, sizeof(row_text), "%03u %03u %03u %03u",
-                 (unsigned)record->tile_refs[row * 4 + 0], (unsigned)record->tile_refs[row * 4 + 1],
-                 (unsigned)record->tile_refs[row * 4 + 2], (unsigned)record->tile_refs[row * 4 + 3]);
-        render_text_line(app, row_text, DETAILS_X + 12, DETAILS_Y + 150 + row * 16,
-                         (SDL_Color){225, 225, 225, 255});
+    SDL_FRect canvas = {(float)CELL_EDITOR_X, (float)CELL_EDITOR_Y, (float)(4 * CELL_EDITOR_TILE_SIZE),
+                        (float)(4 * CELL_EDITOR_TILE_SIZE)};
+    SDL_SetRenderDrawColor(app->renderer, 48, 48, 48, 255);
+    SDL_RenderFillRect(app->renderer, &canvas);
+    SDL_SetRenderDrawColor(app->renderer, 118, 118, 118, 255);
+    SDL_RenderRect(app->renderer, &canvas);
+
+    if (record->type != ASSET_TYPE_CELL32) {
+        render_text_line(app, "Selected asset is not CELL32", CELL_EDITOR_X + 8, CELL_EDITOR_Y + 8,
+                         (SDL_Color){255, 180, 180, 255});
+        return;
+    }
+
+    for (int slot = 0; slot < ASSET_DB_CELL_TILE_COUNT; ++slot) {
+        int row = slot / 4;
+        int col = slot % 4;
+        int x = CELL_EDITOR_X + col * CELL_EDITOR_TILE_SIZE;
+        int y = CELL_EDITOR_Y + row * CELL_EDITOR_TILE_SIZE;
+        int tile_id = (int)record->tile_refs[slot];
+
+        render_tile(app->renderer, tile_id, x, y, CELL_EDITOR_TILE_SIZE);
+
+        SDL_SetRenderDrawColor(app->renderer, 95, 95, 95, 255);
+        SDL_FRect border = {(float)x, (float)y, (float)CELL_EDITOR_TILE_SIZE, (float)CELL_EDITOR_TILE_SIZE};
+        SDL_RenderRect(app->renderer, &border);
+
+        char slot_label[8];
+        snprintf(slot_label, sizeof(slot_label), "%d", slot);
+        render_text_line(app, slot_label, x + 2, y + 2, (SDL_Color){255, 255, 255, 255});
+    }
+
+    const int palette_w = TILE_PALETTE_COLS * TILE_PALETTE_TILE_SIZE +
+                          (TILE_PALETTE_COLS - 1) * TILE_PALETTE_TILE_GAP;
+    const int palette_h = TILE_PALETTE_ROWS * TILE_PALETTE_TILE_SIZE +
+                          (TILE_PALETTE_ROWS - 1) * TILE_PALETTE_TILE_GAP;
+    SDL_FRect tile_panel = {(float)(TILE_PALETTE_X - 4), (float)(TILE_PALETTE_Y - 4), (float)(palette_w + 8),
+                            (float)(palette_h + 8)};
+    SDL_SetRenderDrawColor(app->renderer, 42, 42, 42, 255);
+    SDL_RenderFillRect(app->renderer, &tile_panel);
+    SDL_SetRenderDrawColor(app->renderer, 108, 108, 108, 255);
+    SDL_RenderRect(app->renderer, &tile_panel);
+
+    for (int tile_id = 0; tile_id < TILE_COUNT; ++tile_id) {
+        int row = tile_id / TILE_PALETTE_COLS;
+        int col = tile_id % TILE_PALETTE_COLS;
+        int x = TILE_PALETTE_X + col * (TILE_PALETTE_TILE_SIZE + TILE_PALETTE_TILE_GAP);
+        int y = TILE_PALETTE_Y + row * (TILE_PALETTE_TILE_SIZE + TILE_PALETTE_TILE_GAP);
+        render_tile(app->renderer, tile_id, x, y, TILE_PALETTE_TILE_SIZE);
+        if (tile_id == app->selected_tile) {
+            SDL_SetRenderDrawColor(app->renderer, 90, 210, 255, 255);
+            SDL_FRect highlight = {(float)x, (float)y, (float)TILE_PALETTE_TILE_SIZE,
+                                   (float)TILE_PALETTE_TILE_SIZE};
+            SDL_RenderRect(app->renderer, &highlight);
+        }
     }
 }
 
@@ -630,7 +778,7 @@ static void render_ui(AppState* app) {
 
     render_text_line(app, "AssetComposer v0.1", MENU_BUTTON_X + 118, MENU_BUTTON_Y + 8,
                      (SDL_Color){220, 220, 220, 255});
-    render_text_line(app, "O open, S save, N new, A add, Del remove, Esc menu",
+    render_text_line(app, "O open, S save, N new, A add, Del remove, LMB paint, RMB pick, Esc menu",
                      MENU_BUTTON_X + 260, MENU_BUTTON_Y + 8, (SDL_Color){160, 160, 160, 255});
 
     char path_line[300];
@@ -651,11 +799,11 @@ static void render_ui(AppState* app) {
 }
 
 static void handle_mouse_press(AppState* app, bool left_button) {
-    if (!app || !left_button) {
+    if (!app) {
         return;
     }
 
-    if (handle_menu_click(app, app->mouse_x, app->mouse_y)) {
+    if (left_button && handle_menu_click(app, app->mouse_x, app->mouse_y)) {
         return;
     }
     if (menu_is_open(app)) {
@@ -671,6 +819,39 @@ static void handle_mouse_press(AppState* app, bool left_button) {
             app->selected_index = index;
             select_clamp(app);
         }
+        return;
+    }
+
+    int tile_id = -1;
+    if (hit_test_tile_palette(app->mouse_x, app->mouse_y, &tile_id)) {
+        app->selected_tile = tile_id;
+        char msg[64];
+        snprintf(msg, sizeof(msg), "Selected tile %03d", tile_id);
+        set_status(app, msg);
+        return;
+    }
+
+    int slot = -1;
+    if (hit_test_cell_slot(app->mouse_x, app->mouse_y, &slot)) {
+        AssetRecord* record = get_selected_record_mut(app);
+        if (!record || record->type != ASSET_TYPE_CELL32) {
+            return;
+        }
+
+        if (left_button) {
+            if (record->tile_refs[slot] != (uint8_t)app->selected_tile) {
+                record->tile_refs[slot] = (uint8_t)app->selected_tile;
+                app->dirty = true;
+            }
+            char msg[72];
+            snprintf(msg, sizeof(msg), "Painted slot %d with tile %03d", slot, app->selected_tile);
+            set_status(app, msg);
+        } else {
+            app->selected_tile = (int)record->tile_refs[slot];
+            char msg[72];
+            snprintf(msg, sizeof(msg), "Picked tile %03d from slot %d", app->selected_tile, slot);
+            set_status(app, msg);
+        }
     }
 }
 
@@ -682,11 +863,16 @@ static bool app_init(AppState* app) {
     memset(app, 0, sizeof(*app));
     app->running = true;
     app->selected_index = -1;
+    app->selected_tile = 0;
     app->menu_mode = MENU_STARTUP;
     set_status(app, "Startup menu: choose Open or New");
 
-    const char* path_candidates[] = {"assets.dat", "../assets.dat", "../../assets.dat"};
-    resolve_path(app->assets_path, sizeof(app->assets_path), path_candidates, 3);
+    const char* asset_candidates[] = {"assets.dat", "../assets.dat", "../../assets.dat"};
+    const char* palette_candidates[] = {"palette.dat", "../palette.dat", "../../palette.dat"};
+    const char* tiles_candidates[] = {"tiles.dat", "../tiles.dat", "../../tiles.dat"};
+    resolve_path(app->assets_path, sizeof(app->assets_path), asset_candidates, 3);
+    resolve_path(app->palette_path, sizeof(app->palette_path), palette_candidates, 3);
+    resolve_path(app->tiles_path, sizeof(app->tiles_path), tiles_candidates, 3);
     asset_db_init_default(&app->db);
     app->selected_index = 0;
 
@@ -721,6 +907,15 @@ static bool app_init(AppState* app) {
         SDL_DestroyWindow(app->window);
         SDL_Quit();
         return false;
+    }
+
+    palette_init();
+    if (!palette_load(app->palette_path)) {
+        printf("Palette load failed: %s (using defaults)\n", app->palette_path);
+    }
+    tiles_init();
+    if (!tiles_load(app->tiles_path)) {
+        printf("Tiles load failed: %s (using defaults)\n", app->tiles_path);
     }
 
     return true;
@@ -771,6 +966,8 @@ static void app_handle_events(AppState* app) {
                 app->mouse_y = (int)logical_y;
                 if (event.button.button == SDL_BUTTON_LEFT) {
                     handle_mouse_press(app, true);
+                } else if (event.button.button == SDL_BUTTON_RIGHT) {
+                    handle_mouse_press(app, false);
                 }
                 break;
             }
@@ -815,6 +1012,16 @@ static void app_handle_events(AppState* app) {
                     case SDL_SCANCODE_Q:
                         begin_quit_flow(app);
                         break;
+                    case SDL_SCANCODE_LEFTBRACKET:
+                        if (app->selected_tile > 0) {
+                            app->selected_tile--;
+                        }
+                        break;
+                    case SDL_SCANCODE_RIGHTBRACKET:
+                        if (app->selected_tile < TILE_COUNT - 1) {
+                            app->selected_tile++;
+                        }
+                        break;
                     default:
                         break;
                 }
@@ -849,6 +1056,8 @@ int main(void) {
 
     printf("Asset Composer started\n");
     printf("DB: %s\n", app.assets_path);
+    printf("Tiles: %s\n", app.tiles_path);
+    printf("Palette: %s\n", app.palette_path);
 
     while (app.running) {
         app_handle_events(&app);
