@@ -18,10 +18,10 @@
 #define WINDOW_WIDTH 1400
 #define WINDOW_HEIGHT 760
 
-#define MAP_ORIGIN_X 10
+#define MAP_ORIGIN_X 360
 #define MAP_ORIGIN_Y 52
 
-#define TILE_PANEL_X 1060
+#define TILE_PANEL_X 16
 #define TILE_PANEL_Y 52
 #define TILE_PANEL_COLS 16
 #define TILE_PANEL_ROWS 16
@@ -33,13 +33,25 @@
 #define MAP_META_VERSION 1
 #define MAP_META_HEADER_SIZE 64
 #define SOURCE_TILE_GRID_SIZE 16
-#define SPAWN_BUTTON_Y (TILE_PANEL_Y + 374)
+#define MAP_SIZE_BUTTON_Y (TILE_PANEL_Y + 418)
+#define MAP_SIZE_BUTTON_W 30
+#define MAP_SIZE_BUTTON_H 22
+#define MAP_SIZE_BUTTON_GAP 4
+#define SPAWN_BUTTON_Y (TILE_PANEL_Y + 452)
 #define SPAWN_BUTTON_W 42
 #define SPAWN_BUTTON_H 22
 #define SPAWN_BUTTON_GAP 6
 #define SPAWN_MOVE_Y (SPAWN_BUTTON_Y + SPAWN_BUTTON_H + 10)
 #define SPAWN_MOVE_W 30
 #define SPAWN_MOVE_H 22
+#define MENU_BUTTON_X 10
+#define MENU_BUTTON_Y 14
+#define MENU_BUTTON_W 90
+#define MENU_BUTTON_H 26
+#define MENU_DIALOG_W 320
+#define MENU_OPTION_W 220
+#define MENU_OPTION_H 30
+#define MENU_OPTION_GAP 10
 
 typedef struct {
     int material;
@@ -62,6 +74,8 @@ typedef struct {
 } StructureRect;
 
 typedef struct {
+    uint8_t map_cols;
+    uint8_t map_rows;
     GridPoint player_spawns[2];
     GridPoint enemy_spawns[3];
     StructureRect player_base;
@@ -74,6 +88,12 @@ typedef enum {
     BASE_EDIT_PLAYER = 0,
     BASE_EDIT_ENEMY = 1,
 } BaseEditTarget;
+
+typedef enum {
+    APP_MENU_NONE = 0,
+    APP_MENU_STARTUP = 1,
+    APP_MENU_MAIN = 2,
+} AppMenuMode;
 
 typedef struct {
     SDL_Window* window;
@@ -105,6 +125,7 @@ typedef struct {
     BaseEditTarget active_base;
     int active_spawn_slot;  // 0..4 => P1,P2,E1,E2,E3
     int pending_spawn_slot; // -1 none, 0..4 waiting for map click
+    AppMenuMode menu_mode;
 } AppState;
 
 static MapCell g_map[MAP_ROWS][MAP_COLS];
@@ -189,12 +210,7 @@ static void fill_cell(int row, int col, uint8_t tile_id, uint8_t health, uint8_t
 static void init_default_map(void) {
     for (int row = 0; row < MAP_ROWS; ++row) {
         for (int col = 0; col < MAP_COLS; ++col) {
-            const bool border = (row == 0 || col == 0 || row == MAP_ROWS - 1 || col == MAP_COLS - 1);
-            if (border) {
-                fill_cell(row, col, 1, 1, 1, 0);
-            } else {
-                fill_cell(row, col, 0, 1, 0, 1);
-            }
+            fill_cell(row, col, 0, 1, 0, 1);
         }
     }
 }
@@ -205,6 +221,8 @@ static void metadata_init_defaults(MapMetadata* meta) {
     }
 
     memset(meta, 0, sizeof(*meta));
+    meta->map_cols = MAP_COLS;
+    meta->map_rows = MAP_ROWS;
     meta->player_spawns[0].x = 2;
     meta->player_spawns[0].y = MAP_ROWS - 2;
     meta->player_spawns[1].x = 4;
@@ -237,21 +255,27 @@ static void metadata_init_defaults(MapMetadata* meta) {
     meta->enemy_base_produces_extra = false;
 }
 
-static void structure_clamp_to_map(StructureRect* structure) {
+static void structure_clamp_to_map(StructureRect* structure, int max_cols, int max_rows) {
     if (!structure) {
         return;
     }
-
-    structure->w = clamp_u8(structure->w, 1, MAP_COLS);
-    structure->h = clamp_u8(structure->h, 1, MAP_ROWS);
-    structure->x = clamp_u8(structure->x, 0, MAP_COLS - 1);
-    structure->y = clamp_u8(structure->y, 0, MAP_ROWS - 1);
-
-    if ((int)structure->x + (int)structure->w > MAP_COLS) {
-        structure->x = (uint8_t)(MAP_COLS - structure->w);
+    if (max_cols < 1) {
+        max_cols = 1;
     }
-    if ((int)structure->y + (int)structure->h > MAP_ROWS) {
-        structure->y = (uint8_t)(MAP_ROWS - structure->h);
+    if (max_rows < 1) {
+        max_rows = 1;
+    }
+
+    structure->w = clamp_u8(structure->w, 1, (uint8_t)max_cols);
+    structure->h = clamp_u8(structure->h, 1, (uint8_t)max_rows);
+    structure->x = clamp_u8(structure->x, 0, (uint8_t)(max_cols - 1));
+    structure->y = clamp_u8(structure->y, 0, (uint8_t)(max_rows - 1));
+
+    if ((int)structure->x + (int)structure->w > max_cols) {
+        structure->x = (uint8_t)(max_cols - structure->w);
+    }
+    if ((int)structure->y + (int)structure->h > max_rows) {
+        structure->y = (uint8_t)(max_rows - structure->h);
     }
 
     structure->tile_x = clamp_u8(structure->tile_x, 0, SOURCE_TILE_GRID_SIZE - 1);
@@ -263,17 +287,22 @@ static void metadata_clamp(MapMetadata* meta) {
         return;
     }
 
+    meta->map_cols = clamp_u8(meta->map_cols, 1, MAP_COLS);
+    meta->map_rows = clamp_u8(meta->map_rows, 1, MAP_ROWS);
+    const int max_cols = (int)meta->map_cols;
+    const int max_rows = (int)meta->map_rows;
+
     for (int i = 0; i < 2; ++i) {
-        meta->player_spawns[i].x = clamp_u8(meta->player_spawns[i].x, 0, MAP_COLS - 1);
-        meta->player_spawns[i].y = clamp_u8(meta->player_spawns[i].y, 0, MAP_ROWS - 1);
+        meta->player_spawns[i].x = clamp_u8(meta->player_spawns[i].x, 0, (uint8_t)(max_cols - 1));
+        meta->player_spawns[i].y = clamp_u8(meta->player_spawns[i].y, 0, (uint8_t)(max_rows - 1));
     }
     for (int i = 0; i < 3; ++i) {
-        meta->enemy_spawns[i].x = clamp_u8(meta->enemy_spawns[i].x, 0, MAP_COLS - 1);
-        meta->enemy_spawns[i].y = clamp_u8(meta->enemy_spawns[i].y, 0, MAP_ROWS - 1);
+        meta->enemy_spawns[i].x = clamp_u8(meta->enemy_spawns[i].x, 0, (uint8_t)(max_cols - 1));
+        meta->enemy_spawns[i].y = clamp_u8(meta->enemy_spawns[i].y, 0, (uint8_t)(max_rows - 1));
     }
 
-    structure_clamp_to_map(&meta->player_base);
-    structure_clamp_to_map(&meta->enemy_base);
+    structure_clamp_to_map(&meta->player_base, max_cols, max_rows);
+    structure_clamp_to_map(&meta->enemy_base, max_cols, max_rows);
 }
 
 static bool parse_int_token(const char* token, int* out_value) {
@@ -507,8 +536,8 @@ static bool metadata_write_header(FILE* file, const MapMetadata* meta) {
     header[3] = '1';
     header[4] = (uint8_t)(MAP_META_VERSION & 0xFFu);
     header[5] = (uint8_t)((MAP_META_VERSION >> 8) & 0xFFu);
-    header[6] = MAP_COLS;
-    header[7] = MAP_ROWS;
+    header[6] = meta->map_cols;
+    header[7] = meta->map_rows;
     header[8] = meta->enemy_count;
     header[9] = meta->enemy_base_produces_extra ? 1u : 0u;
 
@@ -561,12 +590,14 @@ static bool metadata_read_header(FILE* file, MapMetadata* out_meta) {
     if (version != MAP_META_VERSION) {
         return false;
     }
-    if (header[6] != MAP_COLS || header[7] != MAP_ROWS) {
+    if (header[6] == 0 || header[6] > MAP_COLS || header[7] == 0 || header[7] > MAP_ROWS) {
         return false;
     }
 
     MapMetadata loaded;
     metadata_init_defaults(&loaded);
+    loaded.map_cols = header[6];
+    loaded.map_rows = header[7];
 
     loaded.enemy_count = header[8];
     loaded.enemy_base_produces_extra = header[9] != 0;
@@ -661,6 +692,159 @@ static bool save_map_file(const char* path, const MapMetadata* meta) {
     return ok;
 }
 
+static void app_new_map_action(AppState* app) {
+    if (!app) {
+        return;
+    }
+
+    init_default_map();
+    metadata_init_defaults(&app->meta);
+    metadata_clamp(&app->meta);
+    app->pending_spawn_slot = -1;
+    app->active_spawn_slot = -1;
+    app->dirty = true;
+    set_status(app, "New map created (unsaved)");
+}
+
+static void app_load_map_action(AppState* app) {
+    if (!app) {
+        return;
+    }
+
+    bool map_loaded = load_map_file(app->map_path, &app->meta);
+    if (!map_loaded) {
+        init_default_map();
+        metadata_init_defaults(&app->meta);
+    }
+    metadata_clamp(&app->meta);
+    app->pending_spawn_slot = -1;
+    app->active_spawn_slot = -1;
+    app->dirty = false;
+    if (map_loaded) {
+        set_status(app, "Map loaded (header+payload)");
+    } else {
+        set_status(app, "Open failed, defaults loaded");
+    }
+}
+
+static void app_save_map_action(AppState* app) {
+    if (!app) {
+        return;
+    }
+
+    metadata_clamp(&app->meta);
+    bool map_saved = save_map_file(app->map_path, &app->meta);
+    if (map_saved) {
+        app->dirty = false;
+        set_status(app, "Map saved (64-byte header + payload)");
+    } else {
+        set_status(app, "Save failed");
+    }
+}
+
+static bool app_menu_is_open(const AppState* app) {
+    return app && app->menu_mode != APP_MENU_NONE;
+}
+
+static int app_menu_option_count(AppMenuMode mode) {
+    if (mode == APP_MENU_STARTUP) {
+        return 2;
+    }
+    if (mode == APP_MENU_MAIN) {
+        return 4;
+    }
+    return 0;
+}
+
+static const char* app_menu_option_label(AppMenuMode mode, int index) {
+    static const char* startup_options[] = {"Open", "New"};
+    static const char* main_options[] = {"Load", "Save", "New", "Resume"};
+    if (mode == APP_MENU_STARTUP) {
+        return (index >= 0 && index < 2) ? startup_options[index] : "";
+    }
+    if (mode == APP_MENU_MAIN) {
+        return (index >= 0 && index < 4) ? main_options[index] : "";
+    }
+    return "";
+}
+
+static SDL_FRect menu_button_rect(void) {
+    return (SDL_FRect){(float)MENU_BUTTON_X, (float)MENU_BUTTON_Y, (float)MENU_BUTTON_W,
+                       (float)MENU_BUTTON_H};
+}
+
+static SDL_FRect menu_dialog_rect(AppMenuMode mode) {
+    const int option_count = app_menu_option_count(mode);
+    const int content_h = option_count > 0 ? option_count * MENU_OPTION_H + (option_count - 1) * MENU_OPTION_GAP : 0;
+    const int dialog_h = 64 + content_h + 20;
+    const float x = (float)((WINDOW_WIDTH - MENU_DIALOG_W) / 2);
+    const float y = (float)((WINDOW_HEIGHT - dialog_h) / 2);
+    return (SDL_FRect){x, y, (float)MENU_DIALOG_W, (float)dialog_h};
+}
+
+static SDL_FRect menu_option_rect(AppMenuMode mode, int index) {
+    SDL_FRect dialog = menu_dialog_rect(mode);
+    const float x = dialog.x + (dialog.w - (float)MENU_OPTION_W) * 0.5f;
+    const float y = dialog.y + 50.0f + (float)index * (float)(MENU_OPTION_H + MENU_OPTION_GAP);
+    return (SDL_FRect){x, y, (float)MENU_OPTION_W, (float)MENU_OPTION_H};
+}
+
+static bool handle_menu_click(AppState* app, int x, int y) {
+    if (!app) {
+        return false;
+    }
+
+    SDL_FRect menu_button = menu_button_rect();
+    if (!app_menu_is_open(app) && point_in_frect(x, y, &menu_button)) {
+        app->menu_mode = APP_MENU_MAIN;
+        return true;
+    }
+
+    if (!app_menu_is_open(app)) {
+        return false;
+    }
+
+    SDL_FRect dialog = menu_dialog_rect(app->menu_mode);
+    if (!point_in_frect(x, y, &dialog)) {
+        if (app->menu_mode == APP_MENU_MAIN) {
+            app->menu_mode = APP_MENU_NONE;
+        }
+        return true;
+    }
+
+    const int option_count = app_menu_option_count(app->menu_mode);
+    for (int i = 0; i < option_count; ++i) {
+        SDL_FRect option = menu_option_rect(app->menu_mode, i);
+        if (!point_in_frect(x, y, &option)) {
+            continue;
+        }
+
+        if (app->menu_mode == APP_MENU_STARTUP) {
+            if (i == 0) {
+                app_load_map_action(app);
+            } else if (i == 1) {
+                app_new_map_action(app);
+            }
+            app->menu_mode = APP_MENU_NONE;
+            return true;
+        }
+
+        if (app->menu_mode == APP_MENU_MAIN) {
+            if (i == 0) {
+                app_load_map_action(app);
+            } else if (i == 1) {
+                app_save_map_action(app);
+            } else if (i == 2) {
+                app_new_map_action(app);
+            }
+            app->menu_mode = APP_MENU_NONE;
+            return true;
+        }
+    }
+
+    return true;
+}
+
 static void sync_brush_from_selected_tile(AppState* app) {
     if (!app) {
         return;
@@ -692,8 +876,15 @@ static bool app_hover_cell(const AppState* app, int* out_row, int* out_col) {
     return true;
 }
 
+static bool app_cell_enabled(const AppState* app, int row, int col) {
+    if (!app || row < 0 || col < 0 || row >= MAP_ROWS || col >= MAP_COLS) {
+        return false;
+    }
+    return row < (int)app->meta.map_rows && col < (int)app->meta.map_cols;
+}
+
 static void app_set_spawn_at_cell(AppState* app, int spawn_slot, int row, int col) {
-    if (!app || row < 0 || row >= MAP_ROWS || col < 0 || col >= MAP_COLS) {
+    if (!app || !app_cell_enabled(app, row, col)) {
         return;
     }
 
@@ -749,15 +940,17 @@ static void app_move_active_spawn(AppState* app, int dx, int dy) {
 
     int next_x = (int)spawn->x + dx;
     int next_y = (int)spawn->y + dy;
+    const int max_cols = (int)app->meta.map_cols;
+    const int max_rows = (int)app->meta.map_rows;
     if (next_x < 0) {
         next_x = 0;
-    } else if (next_x >= MAP_COLS) {
-        next_x = MAP_COLS - 1;
+    } else if (next_x >= max_cols) {
+        next_x = max_cols - 1;
     }
     if (next_y < 0) {
         next_y = 0;
-    } else if (next_y >= MAP_ROWS) {
-        next_y = MAP_ROWS - 1;
+    } else if (next_y >= max_rows) {
+        next_y = max_rows - 1;
     }
 
     if ((int)spawn->x != next_x || (int)spawn->y != next_y) {
@@ -765,6 +958,59 @@ static void app_move_active_spawn(AppState* app, int dx, int dy) {
         spawn->y = (uint8_t)next_y;
         app->dirty = true;
     }
+}
+
+static SDL_FRect map_cols_minus_rect(void) {
+    return (SDL_FRect){(float)TILE_PANEL_X, (float)MAP_SIZE_BUTTON_Y, (float)MAP_SIZE_BUTTON_W,
+                       (float)MAP_SIZE_BUTTON_H};
+}
+
+static SDL_FRect map_cols_plus_rect(void) {
+    return (SDL_FRect){(float)(TILE_PANEL_X + MAP_SIZE_BUTTON_W + MAP_SIZE_BUTTON_GAP),
+                       (float)MAP_SIZE_BUTTON_Y, (float)MAP_SIZE_BUTTON_W, (float)MAP_SIZE_BUTTON_H};
+}
+
+static SDL_FRect map_rows_minus_rect(void) {
+    return (SDL_FRect){(float)(TILE_PANEL_X + 126), (float)MAP_SIZE_BUTTON_Y,
+                       (float)MAP_SIZE_BUTTON_W, (float)MAP_SIZE_BUTTON_H};
+}
+
+static SDL_FRect map_rows_plus_rect(void) {
+    return (SDL_FRect){(float)(TILE_PANEL_X + 126 + MAP_SIZE_BUTTON_W + MAP_SIZE_BUTTON_GAP),
+                       (float)MAP_SIZE_BUTTON_Y, (float)MAP_SIZE_BUTTON_W, (float)MAP_SIZE_BUTTON_H};
+}
+
+static bool handle_map_size_ui_click(AppState* app, int x, int y) {
+    if (!app) {
+        return false;
+    }
+
+    SDL_FRect w_minus = map_cols_minus_rect();
+    SDL_FRect w_plus = map_cols_plus_rect();
+    SDL_FRect h_minus = map_rows_minus_rect();
+    SDL_FRect h_plus = map_rows_plus_rect();
+
+    bool changed = false;
+    if (point_in_frect(x, y, &w_minus) && app->meta.map_cols > 1) {
+        app->meta.map_cols--;
+        changed = true;
+    } else if (point_in_frect(x, y, &w_plus) && app->meta.map_cols < MAP_COLS) {
+        app->meta.map_cols++;
+        changed = true;
+    } else if (point_in_frect(x, y, &h_minus) && app->meta.map_rows > 1) {
+        app->meta.map_rows--;
+        changed = true;
+    } else if (point_in_frect(x, y, &h_plus) && app->meta.map_rows < MAP_ROWS) {
+        app->meta.map_rows++;
+        changed = true;
+    }
+
+    if (changed) {
+        metadata_clamp(&app->meta);
+        app->dirty = true;
+        set_status(app, "Map size updated");
+    }
+    return changed;
 }
 
 static SDL_FRect spawn_slot_rect(int slot) {
@@ -856,7 +1102,7 @@ static void app_place_base_at_hover(AppState* app, bool enemy_base) {
     }
     structure->tile_x = (uint8_t)(app->selected_tile % SOURCE_TILE_GRID_SIZE);
     structure->tile_y = (uint8_t)(app->selected_tile / SOURCE_TILE_GRID_SIZE);
-    structure_clamp_to_map(structure);
+    structure_clamp_to_map(structure, (int)app->meta.map_cols, (int)app->meta.map_rows);
     app->dirty = true;
 }
 
@@ -869,6 +1115,8 @@ static void app_adjust_active_structure(AppState* app, SDL_Scancode code) {
     if (!structure) {
         return;
     }
+    const int max_cols = (int)app->meta.map_cols;
+    const int max_rows = (int)app->meta.map_rows;
 
     switch (code) {
         case SDL_SCANCODE_UP:
@@ -878,7 +1126,7 @@ static void app_adjust_active_structure(AppState* app, SDL_Scancode code) {
             }
             break;
         case SDL_SCANCODE_DOWN:
-            if (structure->y < MAP_ROWS - 1) {
+            if (structure->y < max_rows - 1) {
                 structure->y++;
                 app->dirty = true;
             }
@@ -890,7 +1138,7 @@ static void app_adjust_active_structure(AppState* app, SDL_Scancode code) {
             }
             break;
         case SDL_SCANCODE_RIGHT:
-            if (structure->x < MAP_COLS - 1) {
+            if (structure->x < max_cols - 1) {
                 structure->x++;
                 app->dirty = true;
             }
@@ -902,7 +1150,7 @@ static void app_adjust_active_structure(AppState* app, SDL_Scancode code) {
             }
             break;
         case SDL_SCANCODE_O:
-            if (structure->w < MAP_COLS) {
+            if (structure->w < max_cols) {
                 structure->w++;
                 app->dirty = true;
             }
@@ -914,7 +1162,7 @@ static void app_adjust_active_structure(AppState* app, SDL_Scancode code) {
             }
             break;
         case SDL_SCANCODE_K:
-            if (structure->h < MAP_ROWS) {
+            if (structure->h < max_rows) {
                 structure->h++;
                 app->dirty = true;
             }
@@ -947,7 +1195,7 @@ static void app_adjust_active_structure(AppState* app, SDL_Scancode code) {
             break;
     }
 
-    structure_clamp_to_map(structure);
+    structure_clamp_to_map(structure, (int)app->meta.map_cols, (int)app->meta.map_rows);
 }
 
 static bool point_in_rect(int x, int y, int rx, int ry, int rw, int rh) {
@@ -1115,6 +1363,17 @@ static void render_map(AppState* app) {
         for (int col = 0; col < MAP_COLS; ++col) {
             const int x = MAP_ORIGIN_X + col * CELL_SIZE;
             const int y = MAP_ORIGIN_Y + row * CELL_SIZE;
+            const bool enabled = app_cell_enabled(app, row, col);
+
+            if (!enabled) {
+                SDL_SetRenderDrawColor(app->renderer, 22, 22, 22, 255);
+                SDL_FRect disabled = {(float)x, (float)y, (float)CELL_SIZE, (float)CELL_SIZE};
+                SDL_RenderFillRect(app->renderer, &disabled);
+                SDL_SetRenderDrawColor(app->renderer, 58, 58, 58, 255);
+                SDL_RenderRect(app->renderer, &disabled);
+                continue;
+            }
+
             const uint16_t entry = g_map[row][col].entries[0];
             const int tile_id = (int)(entry & 0xFFu);
             const uint8_t spec = (uint8_t)((entry >> 8) & 0xFFu);
@@ -1232,6 +1491,43 @@ static bool point_in_frect(int x, int y, const SDL_FRect* rect) {
            (float)y <= (rect->y + rect->h);
 }
 
+static void render_menu_overlay(AppState* app) {
+    if (!app || !app->renderer || !app_menu_is_open(app)) {
+        return;
+    }
+
+    SDL_SetRenderDrawBlendMode(app->renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(app->renderer, 0, 0, 0, 130);
+    SDL_FRect fade = {0.0f, 0.0f, (float)WINDOW_WIDTH, (float)WINDOW_HEIGHT};
+    SDL_RenderFillRect(app->renderer, &fade);
+
+    SDL_FRect dialog = menu_dialog_rect(app->menu_mode);
+    SDL_SetRenderDrawColor(app->renderer, 34, 34, 34, 238);
+    SDL_RenderFillRect(app->renderer, &dialog);
+    SDL_SetRenderDrawColor(app->renderer, 128, 128, 128, 255);
+    SDL_RenderRect(app->renderer, &dialog);
+
+    if (app->menu_mode == APP_MENU_STARTUP) {
+        render_text_line(app, "Map Maker", (int)dialog.x + 12, (int)dialog.y + 12,
+                         (SDL_Color){240, 240, 240, 255});
+        render_text_line(app, "Select Open or New to begin", (int)dialog.x + 12, (int)dialog.y + 26,
+                         (SDL_Color){190, 190, 190, 255});
+    } else {
+        render_text_line(app, "Menu", (int)dialog.x + 12, (int)dialog.y + 12,
+                         (SDL_Color){240, 240, 240, 255});
+        render_text_line(app, "Load / Save / New", (int)dialog.x + 12, (int)dialog.y + 26,
+                         (SDL_Color){190, 190, 190, 255});
+    }
+
+    const int option_count = app_menu_option_count(app->menu_mode);
+    for (int i = 0; i < option_count; ++i) {
+        SDL_FRect option = menu_option_rect(app->menu_mode, i);
+        render_button(app, &option, app_menu_option_label(app->menu_mode, i), false);
+    }
+
+    SDL_SetRenderDrawBlendMode(app->renderer, SDL_BLENDMODE_NONE);
+}
+
 static void render_ui(AppState* app) {
     if (!app || !app->renderer) {
         return;
@@ -1250,10 +1546,11 @@ static void render_ui(AppState* app) {
     const int pending_spawn = spawn_pending ? app->pending_spawn_slot : 0;
     char line2[220];
     if (spawn_pending) {
-        snprintf(line2, sizeof(line2), "Spawn %s armed: click map cell to place, Tab base:%s",
+        snprintf(line2, sizeof(line2), "Spawn %s armed: click map cell to place, Tab base:%s, ESC menu",
                  spawn_labels[pending_spawn], active_label);
     } else {
-        snprintf(line2, sizeof(line2), "Click P1/P2/E1/E2/E3 then click map to place, Tab base:%s",
+        snprintf(line2, sizeof(line2),
+                 "Click P1/P2/E1/E2/E3 then click map to place, Tab base:%s, ESC menu",
                  active_label);
     }
     render_text_line(app, line2, TILE_PANEL_X, TILE_PANEL_Y + 316, (SDL_Color){180, 180, 180, 255});
@@ -1263,6 +1560,23 @@ static void render_ui(AppState* app) {
     render_text_line(app,
                      "LMB paint, RMB pick, S save, L load, C reset map, [ ] health, , . destruct, ; ' movement",
                      TILE_PANEL_X, TILE_PANEL_Y + 348, (SDL_Color){180, 180, 180, 255});
+
+    SDL_FRect menu_button = menu_button_rect();
+    render_button(app, &menu_button, "Menu", app_menu_is_open(app));
+
+    char size_line[64];
+    snprintf(size_line, sizeof(size_line), "Size W:%u H:%u", (unsigned)app->meta.map_cols,
+             (unsigned)app->meta.map_rows);
+    render_text_line(app, size_line, TILE_PANEL_X, TILE_PANEL_Y + 400, (SDL_Color){220, 220, 220, 255});
+
+    SDL_FRect w_minus = map_cols_minus_rect();
+    SDL_FRect w_plus = map_cols_plus_rect();
+    SDL_FRect h_minus = map_rows_minus_rect();
+    SDL_FRect h_plus = map_rows_plus_rect();
+    render_button(app, &w_minus, "W-", false);
+    render_button(app, &w_plus, "W+", false);
+    render_button(app, &h_minus, "H-", false);
+    render_button(app, &h_plus, "H+", false);
 
     const char* slot_labels[5] = {"P1", "P2", "E1", "E2", "E3"};
     for (int slot = 0; slot < 5; ++slot) {
@@ -1293,6 +1607,17 @@ static void handle_mouse_press(AppState* app, bool left_button) {
         return;
     }
 
+    if (left_button && handle_menu_click(app, app->mouse_x, app->mouse_y)) {
+        return;
+    }
+    if (app_menu_is_open(app)) {
+        return;
+    }
+
+    if (left_button && handle_map_size_ui_click(app, app->mouse_x, app->mouse_y)) {
+        return;
+    }
+
     if (left_button && handle_spawn_ui_click(app, app->mouse_x, app->mouse_y)) {
         return;
     }
@@ -1300,7 +1625,7 @@ static void handle_mouse_press(AppState* app, bool left_button) {
     if (left_button && app->pending_spawn_slot >= 0 && app->pending_spawn_slot <= 4) {
         int row = -1;
         int col = -1;
-        if (hit_test_map(app->mouse_x, app->mouse_y, &row, &col)) {
+        if (hit_test_map(app->mouse_x, app->mouse_y, &row, &col) && app_cell_enabled(app, row, col)) {
             app_set_spawn_at_cell(app, app->pending_spawn_slot, row, col);
             app->active_spawn_slot = -1;
             app->pending_spawn_slot = -1;
@@ -1321,6 +1646,9 @@ static void handle_mouse_press(AppState* app, bool left_button) {
     int row = -1;
     int col = -1;
     if (hit_test_map(app->mouse_x, app->mouse_y, &row, &col)) {
+        if (!app_cell_enabled(app, row, col)) {
+            return;
+        }
         if (left_button) {
             paint_at(app, row, col);
         } else {
@@ -1345,8 +1673,10 @@ static bool app_init(AppState* app) {
     app->active_base = BASE_EDIT_PLAYER;
     app->active_spawn_slot = -1;
     app->pending_spawn_slot = -1;
+    app->menu_mode = APP_MENU_STARTUP;
     metadata_init_defaults(&app->meta);
-    set_status(app, "Map Maker ready");
+    init_default_map();
+    set_status(app, "Startup menu: choose Open or New");
 
     const char* map_candidates[] = {"src/game.map", "../src/game.map", "../../src/game.map"};
     const char* palette_candidates[] = {"palette.dat", "../palette.dat", "../../palette.dat"};
@@ -1400,19 +1730,7 @@ static bool app_init(AppState* app) {
     }
 
     sync_brush_from_selected_tile(app);
-
-    bool map_ok = load_map_file(app->map_path, &app->meta);
-    if (!map_ok) {
-        init_default_map();
-        metadata_init_defaults(&app->meta);
-    }
     metadata_clamp(&app->meta);
-
-    if (map_ok) {
-        set_status(app, "Map (header+payload) loaded");
-    } else {
-        set_status(app, "Defaults loaded");
-    }
     app->dirty = false;
 
     return true;
@@ -1453,10 +1771,11 @@ static void app_handle_events(AppState* app) {
                                               &logical_y);
                 app->mouse_x = (int)logical_x;
                 app->mouse_y = (int)logical_y;
-                if (app->mouse_left_pressed && app->pending_spawn_slot < 0) {
+                if (app->mouse_left_pressed && app->pending_spawn_slot < 0 && !app_menu_is_open(app)) {
                     int row = -1;
                     int col = -1;
-                    if (hit_test_map(app->mouse_x, app->mouse_y, &row, &col)) {
+                    if (hit_test_map(app->mouse_x, app->mouse_y, &row, &col) &&
+                        app_cell_enabled(app, row, col)) {
                         paint_at(app, row, col);
                     }
                 }
@@ -1486,40 +1805,29 @@ static void app_handle_events(AppState* app) {
                 }
                 break;
             case SDL_EVENT_KEY_DOWN: {
+                if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
+                    if (app->menu_mode == APP_MENU_NONE) {
+                        app->menu_mode = APP_MENU_MAIN;
+                    } else if (app->menu_mode == APP_MENU_MAIN) {
+                        app->menu_mode = APP_MENU_NONE;
+                    }
+                    break;
+                }
+
+                if (app_menu_is_open(app)) {
+                    break;
+                }
+
                 const bool shift_held = (event.key.mod & SDL_KMOD_SHIFT) != 0;
                 switch (event.key.scancode) {
-                    case SDL_SCANCODE_ESCAPE:
-                        app->running = false;
+                    case SDL_SCANCODE_S:
+                        app_save_map_action(app);
                         break;
-                    case SDL_SCANCODE_S: {
-                        bool map_saved = save_map_file(app->map_path, &app->meta);
-                        if (map_saved) {
-                            app->dirty = false;
-                            set_status(app, "Map saved (64-byte header + payload)");
-                        } else {
-                            set_status(app, "Save failed");
-                        }
+                    case SDL_SCANCODE_L:
+                        app_load_map_action(app);
                         break;
-                    }
-                    case SDL_SCANCODE_L: {
-                        bool map_loaded = load_map_file(app->map_path, &app->meta);
-                        if (!map_loaded) {
-                            init_default_map();
-                            metadata_init_defaults(&app->meta);
-                        }
-                        metadata_clamp(&app->meta);
-                        if (map_loaded) {
-                            set_status(app, "Map loaded (header+payload)");
-                        } else {
-                            set_status(app, "Load failed, defaults restored");
-                        }
-                        app->dirty = false;
-                        break;
-                    }
                     case SDL_SCANCODE_C:
-                        init_default_map();
-                        app->dirty = true;
-                        set_status(app, "Map reset to defaults");
+                        app_new_map_action(app);
                         break;
                     case SDL_SCANCODE_1:
                         if (shift_held) {
@@ -1669,9 +1977,15 @@ static void app_update_hover(AppState* app) {
         return;
     }
 
+    if (app_menu_is_open(app)) {
+        app->hover_row = -1;
+        app->hover_col = -1;
+        return;
+    }
+
     int row = -1;
     int col = -1;
-    if (hit_test_map(app->mouse_x, app->mouse_y, &row, &col)) {
+    if (hit_test_map(app->mouse_x, app->mouse_y, &row, &col) && app_cell_enabled(app, row, col)) {
         app->hover_row = row;
         app->hover_col = col;
     } else {
@@ -1691,6 +2005,7 @@ static void app_render(AppState* app) {
     render_map(app);
     render_tile_panel(app);
     render_ui(app);
+    render_menu_overlay(app);
 
     SDL_RenderPresent(app->renderer);
 }
