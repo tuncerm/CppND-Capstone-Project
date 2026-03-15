@@ -3,7 +3,6 @@
 ## Current items
 - [ ] Finalize MapMaker modal flow QA: startup/menu/open/save/new/quit confirm paths and edge cases.
 - [ ] Add real map-path selection UI (replace current placeholder list) for open/save.
-- [ ] Review strict cppcheck pull-request reports over 1-2 cycles and set `CPPCHECK_STRICT_BLOCKING=true`.
 - [ ] Add damage-type routing in gameplay (`normal/heavy/special`) to use all `destruction_mode` values.
 - [ ] Integrate tile-maker pixel data into PlayGame renderer (replace color-tinted subtile placeholders).
 
