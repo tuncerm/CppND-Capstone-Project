@@ -8,10 +8,14 @@
 - [ ] Integrate tile-maker pixel data into PlayGame renderer (replace color-tinted subtile placeholders).
 
 ## Asset Composer roadmap
-- [ ] Freeze `assets.dat` v1 schema from `docs/asset_composer_format.md` (header/index/record bytes).
+- [ ] Freeze `assets.dat` v1 schema update for special stamp roles/tags.
 - [x] Create `AssetComposer` tool skeleton with binary load/save and basic dialogs.
-- [ ] Implement `CELL32` authoring (`4x4` of `8x8` tile IDs) and persistence in `assets.dat`.
-- [ ] Update MapMaker to paint `asset_id` cells (`CELL32`) instead of inline 16-subtile data.
+- [x] Implement `CELL32` authoring (`4x4` of `8x8` tile IDs) and persistence in `assets.dat`.
+- [ ] Add `CELL32` role/tag editing for special metadata stamps (`base/flag/factory/spawnpoint/etc`).
+- [ ] Add validation rules for special assets (counts/uniqueness/required fields).
+- [ ] Add MapMaker full-stamp placement flow (always write full `4x4`, no partial stamping).
+- [ ] Add MapMaker metadata/header updater triggered by special stamp placement/removal.
+- [ ] Add metadata rebuild/validation pass before map save to keep header consistent.
 - [ ] Add `SPRITE` and `ANIM` record authoring to `AssetComposer`.
 
 ## Tile import pipeline

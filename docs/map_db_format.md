@@ -122,6 +122,14 @@ Suggested `META` chunk fields:
 - `factory_spawn_interval_sec u16`
 - `factory_flags u16` (reserved)
 
+### Metadata Source Rule (authoring)
+Metadata can be edited directly, but MapMaker should also support deriving/updating metadata
+from special full-stamp assets placed on the map (base/flag/factory/spawnpoint classes).
+
+Recommended rule for consistency:
+- placement/removal of a special stamp updates in-memory `META`
+- before save, run a metadata validation/rebuild pass from the current map state
+
 ## Why Option B is Better
 Option B preserves your `NO|TITLE|METADATA` idea but avoids locking the project into a rigid struct.
 It gives room for:
@@ -130,4 +138,5 @@ It gives room for:
 - Incremental tool evolution (MapMaker can add chunks later).
 
 ## Suggested Next Step
-Implement Option B as `maps.db` while keeping current `src/game.map` export/import during transition.
+Implement Option B as `maps.db` while keeping current `src/game.map` export/import during transition, and
+add special-stamp metadata synchronization in MapMaker.

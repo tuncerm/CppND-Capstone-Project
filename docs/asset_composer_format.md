@@ -1,37 +1,34 @@
-# Asset Composer Format (Draft v1)
+# Asset Composer Format (Draft v2)
 
 ## Goal
-Define a shared composition layer that sits between raw `8x8` tiles and final game content.
+Define a shared composition layer between raw `8x8` tiles and authoring tools.
 
-`AssetComposer` will build:
-- `CELL32` assets for map cells (`32x32` -> `4x4` tiles)
-- `SPRITE` assets for characters/objects (`NxM` tiles)
-- `ANIM` assets as frame sequences over composed assets
+`AssetComposer` builds reusable stamp assets:
+- `CELL32` (`32x32`, made from `4x4` tiles)
+- later `SPRITE` and `ANIM`
 
-This replaces hardcoding 16 subtiles inline in map payloads and enables reusable map/character assets.
+Important decision:
+- Map files remain raw tile data (`128x80` tile entries, `2 bytes` each).
+- Assets are editor-time convenience only (not stored as `asset_id` in map payload).
 
 ## Scope Split
 - `TileMaker`:
-  - Owns `tiles.dat` (raw `8x8` tiles, 256 max in v1)
-  - Owns tile-level specs (health/destruction/movement bits)
-  - Adds import tools:
-    - PNG atlas import (authoring convenience)
-    - text specs import (authoring convenience)
+  - owns `tiles.dat` (`8x8`, 256 tiles)
+  - owns per-tile `spec` bits (`health/destruction/movement`)
 - `AssetComposer`:
-  - Owns composed assets database (`assets.dat`)
-  - Builds map cells, sprites, and animations from tile IDs
+  - owns `assets.dat`
+  - defines reusable full stamps (`CELL32`) and stamp semantics
 - `MapMaker`:
-  - Paints `asset_id` cells (not raw 16-subtile payloads)
+  - applies selected stamp as a full `4x4` write into raw map tiles
+  - for special stamp types, also updates map metadata/header fields
 
 ## IDs and Limits (v1)
 - `tile_id`: `u8` (`0..255`)
 - `asset_id`: `u16` (`0..65535`)
 - `anim_id`: `u16` (`0..65535`)
 
-Use `u16` for composed assets to avoid early ceiling issues.
-
 ## Binary Container (`assets.dat`)
-Binary-only runtime format.
+Binary-only asset catalog.
 
 ### 1) File Header
 - `magic[4] = "ASDB"`
@@ -49,68 +46,51 @@ Binary-only runtime format.
 - `record_size u32`
 - `crc32 u32`
 
-### 3) Record Payload (by type)
+### 3) Record Payloads
 
-#### `CELL32` (`type=1`)
+#### `CELL32` (`type=1`, currently implemented)
 - `w_tiles u8` (=4)
 - `h_tiles u8` (=4)
-- `flags u16` (reserved for cell-level tags)
+- `flags u16`
 - `tile_refs[16]` (`u8` tile IDs)
 
-#### `SPRITE` (`type=2`)
-- `w_tiles u8` (`1..16` initial target)
-- `h_tiles u8` (`1..16` initial target)
-- `pivot_x i8` (optional, local pivot)
-- `pivot_y i8`
-- `tile_refs[w_tiles*h_tiles]` (`u8`)
+## Full Stamp Map Integration
+Map payload stays raw and final:
 
-#### `ANIM` (`type=3`)
-- `frame_count u16`
-- `loop_mode u8` (`0=once`, `1=loop`, `2=pingpong`)
-- `reserved u8`
-- `frames[frame_count]`:
-  - `asset_id u16` (must reference `SPRITE`)
-  - `duration_ticks u16`
-  - `flags u16` (reserved)
+1. user selects `CELL32` in MapMaker
+2. stamp apply writes all `16` tile entries into the target `4x4` tile area
+3. map save writes only raw map header + raw tile payload
 
-## Map Integration Plan
-- Current: each map cell carries 16 packed subtiles.
-- Target: each map cell stores one `asset_id` (`CELL32`) + map cell flags/material as needed.
-- Runtime flow:
-  1. read map cell `asset_id`
-  2. resolve `asset_id -> CELL32`
-  3. draw the resolved `4x4` tile IDs
+No `asset_id` dependency at runtime for map rendering.
 
-This yields reuse, smaller map edits, and easier content iteration.
+## Special Metadata Stamps (new planned behavior)
+Some assets are special authoring markers that also mutate map metadata/header.
 
-## TileMaker Import Additions
-Authoring-only inputs (runtime remains binary-only):
+Examples:
+- player base
+- enemy base
+- player spawn
+- enemy spawn
+- flag
+- factory
 
-### PNG Atlas Import
-- Expected v1 atlas: `128x128` indexed image (`16x16` tiles of `8x8`)
-- Palette check against `palette.dat` (16 colors)
-- Modes:
-  - `strict`: reject colors outside palette
-  - `remap`: nearest palette entry + import report
+Planned editor behavior:
+- stamp still writes its full `4x4` tile pattern
+- plus metadata updater applies semantic changes (header fields/collections)
+- if stamp is removed/overwritten, metadata must be recomputed or corrected
 
-### Text Specs Import
-- Input file example: CSV/TXT lines
-- `tile_id,health,destruction_mode,movement`
-- Validate ranges before apply:
-  - `health: 0..7`
-  - `destruction_mode: 0..7`
-  - `movement: 0..3`
+Notes:
+- this is not implemented yet in `AssetComposer`/`MapMaker`
+- role/tag encoding for special stamps is still open (likely in `CELL32.flags` or an extended record)
 
-## UI Expectations for `AssetComposer`
-- Left: tile list (`0..255`)
-- Center: composition canvas (`CELL32`/`SPRITE`)
-- Right: asset properties + animation timeline
-- Common actions: `New/Open/Save/Clone/Delete`
+## TileMaker Import Additions (planned)
+- PNG atlas import (`128x128`, `16x16` tiles, strict/remap modes)
+- text specs import: `tile_id,health,destruction_mode,movement`
 
-## Implementation Order (proposed)
-1. Lock `assets.dat` bytes/structs and parser/writer.
-2. Implement `CELL32` only, integrate with `MapMaker`.
-3. Add `SPRITE`.
-4. Add `ANIM`.
-5. Add TileMaker PNG/spec imports.
-
+## Implementation Order (revised)
+1. Finalize special stamp role encoding in `assets.dat`.
+2. Add special-role editing UI in `AssetComposer`.
+3. Add full-stamp placement in MapMaker backed by raw tile writes.
+4. Add metadata/header updater triggered by special stamp placement/removal.
+5. Add `SPRITE` and `ANIM`.
+6. Add TileMaker PNG/spec import pipeline.

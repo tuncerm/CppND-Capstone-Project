@@ -76,4 +76,9 @@ Remaining follow-up:
 ## Remaining recommendations (non-blocking)
 - Monitor strict cppcheck pull-request output for 1-2 cycles, then promote stable checks from non-blocking to blocking.
 
+## Current design decisions (2026-03-09)
+- Map runtime format stays raw tile-based (`128x80`, `2 bytes` per tile), with no `asset_id` dependency in map payload.
+- MapMaker will use full `CELL32` stamps as an authoring workflow only (write all `16` tile entries per apply).
+- Special stamp classes (`base/flag/factory/spawnpoint/etc`) are planned to update map metadata/header on placement/removal; this is documented but not implemented yet.
+
 Tracked as active items in `docs/todo.md`.
